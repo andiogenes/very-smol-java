@@ -8,4 +8,7 @@ package tokens
  * @param line Номер строки, на которой находится лексема.
  * @param pos Позиция в строке, с которой начинается лексема.
  */
-case class Token(tpe: TokenType.Value, lexeme: String, extra: String, line: Int, pos: Int)
+case class Token(tpe: TokenType.Value, lexeme: String, extra: String, line: Int, pos: Int) {
+  override def toString: String =
+    s"Type: $tpe,${if (lexeme != "") s" lexeme: $lexeme," else ""} line: $line, pos: ${pos+1}"
+}

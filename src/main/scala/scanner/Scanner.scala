@@ -17,6 +17,8 @@ class Scanner(private val source: String) extends Iterator[Token] {
   private var current: Int = 0
   // Номер текущей строки
   private var line: Int = 1
+  // Позиция конца предыдущей строки
+  private var previousLineEnd = 0
 
   /**
    * Отображение лексем ключевых слов в тип лексемы.
@@ -49,7 +51,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
     current += 1
 
     // Если все лексемы прочитаны, возвращает лексему типа [TokenType.EOF].
-    if (current > source.length) return Token(TokenType.EOF, "", null, line, start)
+    if (current > source.length) return Token(TokenType.EOF, "", "", line, start - previousLineEnd - 1)
 
     // Разбор лексем
     source(start) match {
@@ -109,7 +111,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
       (source(current) == '_' ||
         ('a' <= source(current) && source(current) <= 'z') ||
         ('A' <= source(current) && source(current) <= 'Z') ||
-        ('0' <= source(current) && source(current) <= 9))) current += 1
+        ('0' <= source(current) && source(current) <= '9'))) current += 1
 
     val lexeme = source.substring(start, current)
 
@@ -255,9 +257,10 @@ class Scanner(private val source: String) extends Iterator[Token] {
    */
   private def emitToken(tpe: TokenType.Value, literal: String = ""): Token = {
     val text = source.substring(start, current)
-    Token(tpe, text, literal, line, start)
+    Token(tpe, text, literal, line, start - previousLineEnd)
   }
 
   override def hasNext: Boolean = current <= source.length
+
   override def next(): Token = nextToken()
 }
