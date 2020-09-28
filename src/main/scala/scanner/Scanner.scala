@@ -34,6 +34,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
     "short" -> TokenType.SHORT,
     "long" -> TokenType.LONG,
     "double" -> TokenType.DOUBLE,
+    "return" -> TokenType.RETURN,
   )
 
   /**
@@ -70,8 +71,8 @@ class Scanner(private val source: String) extends Iterator[Token] {
       case '/' => emitToken(TokenType.SLASH)
 
       // Лексемы || и && разбираем символ за символом. Если второй символ не совпал - возвращаем ошибку.
-      case '|' => accept('|', TokenType.OR) getOrElse emitToken(TokenType.ERROR)
-      case '&' => accept('&', TokenType.AND) getOrElse emitToken(TokenType.ERROR)
+      case '|' => accept('|', TokenType.OR) getOrElse emitToken(TokenType.ERROR, "unexpected")
+      case '&' => accept('&', TokenType.AND) getOrElse emitToken(TokenType.ERROR, "unexpected")
 
       // Лексемы с '=' вторым символом. Если кроме первого символа удалось разобрать и '=', возвращаем
       // комбинированную лексему, иначе возвращаем лексему, соответствующую первому символу.
@@ -96,7 +97,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
       // Если встретили букву или нижнее подчеркивание, пробуем разобрать идентификатор (или ключевое слово).
       case v if v == '_' || ('a' <= v && v <= 'z') || ('A' <= v && v <= 'Z') => identifier()
 
-      case _ => emitToken(TokenType.ERROR)
+      case _ => emitToken(TokenType.ERROR, "unexpected")
     }
   }
 
@@ -141,15 +142,15 @@ class Scanner(private val source: String) extends Iterator[Token] {
 
     // Разбираем порядок экспоненты.
     while (current < source.length && '0' <= source(current) && source(current) <= '9') current += 1
-    if (current >= source.length) return emitToken(TokenType.ERROR)
+    if (current >= source.length) return emitToken(TokenType.ERROR, "unfinished exponential number literal")
 
     // Если есть E после порядка - продолжаем разбор. Иначе - ошибка.
     source(current) match {
       case 'E' => current += 1
-      case _ => return emitToken(TokenType.ERROR)
+      case _ => return emitToken(TokenType.ERROR, "unfinished exponential number literal")
     }
 
-    if (current >= source.length) return emitToken(TokenType.ERROR)
+    if (current >= source.length) return emitToken(TokenType.ERROR, "Unfinished exponential number literal")
 
     // Если есть знак или начало числа степени - продолжаем разбор.
     // Иначе - ошибка.
@@ -158,7 +159,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
         current += 1
         if (current < source.length && ('0' > source(current) || source(current) > '9')) return emitToken(TokenType.ERROR)
       case v if '0' <= v && v <= '9' =>
-      case _ => return emitToken(TokenType.ERROR)
+      case _ => return emitToken(TokenType.ERROR, "unfinished exponential number literal")
     }
 
     // Разбираем числа степени.
@@ -196,6 +197,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
       case '\n' =>
         line += 1
         current += 1
+        previousLineEnd = current
         true
 
       // комментарии
@@ -209,6 +211,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
 
         // Многострочный комментарий
         case '*' =>
+          start = current
           current += 1
           error = error orElse blockComment()
           true
@@ -241,7 +244,10 @@ class Scanner(private val source: String) extends Iterator[Token] {
           }
 
         // Учитываем переносы строк
-        case '\n' => line += 1
+        case '\n' =>
+          line += 1
+          previousLineEnd = current + 1
+
         case _ =>
       }
 
@@ -249,18 +255,33 @@ class Scanner(private val source: String) extends Iterator[Token] {
     }
 
     // Если дошли до конца модуля и не "закрыли" комментарий - возвращаем ошибку
-    Option.when(!isEnclosed && current >= source.length)(emitToken(TokenType.ERROR))
+    Option.when(!isEnclosed && current >= source.length)(emitToken(TokenType.ERROR, "unclosed comment"))
   }
 
   /**
-   * Создаёт лексему типа [tpe], со значением [literal] с началом в некоторой позиции на некоторой строке.
+   * Создаёт лексему типа [tpe], со значением [extra] с началом в некоторой позиции на некоторой строке.
    */
-  private def emitToken(tpe: TokenType.Value, literal: String = ""): Token = {
+  private def emitToken(tpe: TokenType.Value, extra: String = ""): Token = {
     val text = source.substring(start, current)
-    Token(tpe, text, literal, line, start - previousLineEnd)
+    Token(tpe, text, extra, line, start - previousLineEnd)
   }
 
   override def hasNext: Boolean = current <= source.length
 
   override def next(): Token = nextToken()
+}
+
+/**
+ * Объект-команьон класса [Scanner].
+ */
+object Scanner {
+  /**
+   * Печатает сообщение об ошибке, если тип [token] - [TokenType.ERROR].
+   */
+  def printError(token: Token): Unit = token match {
+    case Token(TokenType.ERROR, lexeme, extra, line, pos) =>
+      val dq = '"'
+      System.err.println(s"Error: $extra $dq$lexeme$dq at $line:${pos + 1}")
+    case _ =>
+  }
 }

@@ -6,7 +6,7 @@ package tokens
 object TokenType extends Enumeration {
   // Ключевые слова
   val CLASS, VOID, SWITCH, CASE, DEFAULT, BREAK,
-  INT, SHORT, LONG, DOUBLE,
+  INT, SHORT, LONG, DOUBLE, RETURN,
 
   // Идентификатор
   IDENTIFIER,

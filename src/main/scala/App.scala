@@ -11,6 +11,7 @@ object App extends App {
   val scanner = new Scanner(source)
 
   for (token <- scanner) {
+    Scanner.printError(token)
     println(token)
   }
 }

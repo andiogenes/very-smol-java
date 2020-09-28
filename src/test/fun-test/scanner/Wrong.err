@@ -1,0 +1,20 @@
+Error: unexpected "|" at 2:1
+Error: unexpected "&" at 2:3
+Error: unfinished exponential number literal "1." at 3:1
+Error: unfinished exponential number literal "1.0" at 4:1
+Error: unfinished exponential number literal "1.0E" at 5:1
+Error:  "1.0E+" at 6:1
+Error: unfinished exponential number literal "1.E" at 7:1
+Error: unexpected "|" at 8:1
+Error: unexpected "к" at 9:1
+Error: unexpected "и" at 9:2
+Error: unexpected "р" at 9:3
+Error: unexpected "и" at 9:4
+Error: unexpected "л" at 9:5
+Error: unexpected "л" at 9:6
+Error: unexpected "и" at 9:7
+Error: unexpected "ц" at 9:8
+Error: unexpected "а" at 9:9
+Error: unexpected "№" at 10:1
+Error: unexpected "#" at 11:1
+Error: unclosed comment "/* unclosed comment" at 12:1

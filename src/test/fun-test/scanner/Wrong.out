@@ -1,0 +1,21 @@
+Type: ERROR, lexeme: |, line: 2, pos: 1
+Type: ERROR, lexeme: &, line: 2, pos: 3
+Type: ERROR, lexeme: 1., line: 3, pos: 1
+Type: ERROR, lexeme: 1.0, line: 4, pos: 1
+Type: ERROR, lexeme: 1.0E, line: 5, pos: 1
+Type: ERROR, lexeme: 1.0E+, line: 6, pos: 1
+Type: ERROR, lexeme: 1.E, line: 7, pos: 1
+Type: ERROR, lexeme: |, line: 8, pos: 1
+Type: ERROR, lexeme: к, line: 9, pos: 1
+Type: ERROR, lexeme: и, line: 9, pos: 2
+Type: ERROR, lexeme: р, line: 9, pos: 3
+Type: ERROR, lexeme: и, line: 9, pos: 4
+Type: ERROR, lexeme: л, line: 9, pos: 5
+Type: ERROR, lexeme: л, line: 9, pos: 6
+Type: ERROR, lexeme: и, line: 9, pos: 7
+Type: ERROR, lexeme: ц, line: 9, pos: 8
+Type: ERROR, lexeme: а, line: 9, pos: 9
+Type: ERROR, lexeme: №, line: 10, pos: 1
+Type: ERROR, lexeme: #, line: 11, pos: 1
+Type: ERROR, lexeme: /* unclosed comment, line: 12, pos: 1
+Type: EOF, line: 12, pos: 19
