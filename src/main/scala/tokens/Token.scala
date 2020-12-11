@@ -12,3 +12,7 @@ case class Token(tpe: TokenType.Value, lexeme: String, extra: String, line: Int,
   override def toString: String =
     s"Type: $tpe,${if (lexeme != "") s" lexeme: $lexeme," else ""} line: $line, pos: ${pos+1}"
 }
+
+object Token {
+  def unapply(token: Token): Option[(TokenType.Value, String)] = Some(token.tpe, token.lexeme)
+}
