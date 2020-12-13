@@ -272,7 +272,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
 }
 
 /**
- * Объект-команьон класса [Scanner].
+ * Объект-компаньон класса [Scanner].
  */
 object Scanner {
   /**
@@ -281,7 +281,7 @@ object Scanner {
   def printError(token: Token): Unit = token match {
     case Token(TokenType.ERROR, lexeme, extra, line, pos) =>
       val dq = '"'
-      System.err.println(s"Error: $extra $dq$lexeme$dq at $line:${pos + 1}")
+      System.err.println(s"Lexing error: $extra $dq$lexeme$dq at $line:${pos + 1}")
     case _ =>
   }
 }

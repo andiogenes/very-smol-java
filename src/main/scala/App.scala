@@ -1,6 +1,7 @@
 import java.nio.charset.Charset
 import java.nio.file.{Files, Paths}
 
+import parser.Parser
 import scanner.Scanner
 
 object App extends App {
@@ -9,9 +10,7 @@ object App extends App {
 
   val source = new String(Files.readAllBytes(Paths.get(sourcePath)), Charset.defaultCharset)
   val scanner = new Scanner(source)
+  val parser = new Parser(scanner.buffered)
 
-  for (token <- scanner) {
-    Scanner.printError(token)
-    println(token)
-  }
+  parser.parse()
 }
