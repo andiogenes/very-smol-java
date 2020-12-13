@@ -189,7 +189,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
 
     while (current < source.length && (source(current) match {
       // пробелы, символы табуляции
-      case ' ' | '\t' =>
+      case ' ' | '\t' | '\r' =>
         current += 1
         true
 
