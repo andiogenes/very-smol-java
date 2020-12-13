@@ -1,0 +1,2 @@
+Lexing error: unexpected "[" at 1:12
+Parsing error: '{' expected, got: '[' at line 1, pos 12
