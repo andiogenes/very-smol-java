@@ -27,7 +27,7 @@ object Launcher extends App {
   val out = System.out
 
   // Для всех файлов в текущей папке перенаправляем stdout и stdin и запускаем главную программу
-  for (f <- getListOfFiles(".")) {
+  for (f <- getListOfFiles(".") if f.getName.endsWith(".java")) {
     val name = f.getName
 
     val testErr = new PrintStream(new FileOutputStream(s"$name.err"))
