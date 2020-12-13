@@ -18,11 +18,19 @@ class Parser(private val tokens: BufferedIterator[Token]) {
    */
   def parse(): Unit = {
     try {
-      consume("'class' keyword expected", TokenType.CLASS)
-      classDeclaration()
+      program()
     } catch {
       case _: ParseError =>
     }
+  }
+
+  /**
+   * Разбор синтаксической конструкции __"Программа"__.
+   */
+  private def program(): Unit = {
+    consume("'class' keyword expected", TokenType.CLASS)
+    classDeclaration()
+    consume("unexpected token after main class declaration", TokenType.EOF)
   }
 
   /**
