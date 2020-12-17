@@ -3,6 +3,7 @@ package cmd
 import java.nio.charset.Charset
 import java.nio.file.{Files, Paths}
 
+import context.ContextNode
 import parser.Parser
 import scanner.Scanner
 
@@ -14,5 +15,6 @@ object App extends App {
   val scanner = new Scanner(source)
   val parser = new Parser(scanner.buffered)
 
-  parser.parse()
+  val tree = parser.parse()
+  tree.foreach(ContextNode.dotPrint)
 }

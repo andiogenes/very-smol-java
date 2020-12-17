@@ -34,7 +34,7 @@ object Launcher extends App {
     val testOut = new PrintStream(new FileOutputStream(s"$name.out"))
 
     System.setErr(testErr)
-    System.setOut(testErr)
+    System.setOut(testOut)
 
     App.main(Array[String]("--source", name))
 
