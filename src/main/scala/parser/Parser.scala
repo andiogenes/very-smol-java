@@ -93,8 +93,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
       return methodRoot
     }
     // Объявление поля
-    val fieldRoot = ContextNode.Field(name, tpe)
-    fieldRoot.rightChild = dataDeclaration(tpe)
+    val data = dataDeclaration(tpe).asInstanceOf[ContextNode.Value]
+    val fieldRoot = ContextNode.Field(name, tpe, data.value)
     fieldRoot
   }
 
@@ -113,7 +113,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   private def dataDeclaration(tpe: ContextNode.Type.Value): ContextNode = {
     // Опциональная инциализация
     val initValue = if (accept(TokenType.EQUAL)) {
-      expression().getOrElse(ContextNode.Value(tpe, null))
+      expression().getOrElse(ContextNode.Value(tpe, ContextNode.Undefined))
     } else {
       ContextNode.Value(tpe, ContextNode.Type.default(tpe))
     }
@@ -174,8 +174,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   private def variableDeclaration(tpe: ContextNode.Type.Value): ContextNode = {
     // Имя переменной
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
-    val variable = ContextNode.Variable(name, tpe)
-    variable.rightChild = dataDeclaration(tpe)
+    val data = dataDeclaration(tpe).asInstanceOf[ContextNode.Value]
+    val variable = ContextNode.Variable(name, tpe, data.value)
     variable
   }
 
