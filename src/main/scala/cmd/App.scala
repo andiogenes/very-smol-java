@@ -3,7 +3,7 @@ package cmd
 import java.nio.charset.Charset
 import java.nio.file.{Files, Paths}
 
-import context.ContextNode
+import symbol_table.SymbolNode
 import parser.Parser
 import scanner.Scanner
 
@@ -16,5 +16,5 @@ object App extends App {
   val parser = new Parser(scanner.buffered)
 
   val tree = parser.parse()
-  tree.foreach(ContextNode.dotPrint)
+  tree.foreach(SymbolNode.dotPrint)
 }

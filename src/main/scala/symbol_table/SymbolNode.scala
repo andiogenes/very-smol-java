@@ -1,31 +1,31 @@
-package context
+package symbol_table
 
 import tokens.TokenType
 
 /**
  * Представление элемента таблицы символов как узла бинарного дерева.
  */
-sealed trait ContextNode {
-  private var _parent: ContextNode = _
-  private var _leftChild: ContextNode = _
-  private var _rightChild: ContextNode = _
+sealed trait SymbolNode {
+  private var _parent: SymbolNode = _
+  private var _leftChild: SymbolNode = _
+  private var _rightChild: SymbolNode = _
 
   /**
    * Родитель узла.
    */
-  def parent: ContextNode = _parent
+  def parent: SymbolNode = _parent
 
   /**
    * Левый ребенок узла.
    */
-  def leftChild: ContextNode = _leftChild
-  def leftChild_=(node: ContextNode): Unit = { _leftChild = node; if (node != null) { node._parent = this } }
+  def leftChild: SymbolNode = _leftChild
+  def leftChild_=(node: SymbolNode): Unit = { _leftChild = node; if (node != null) { node._parent = this } }
 
   /**
    * Правый ребенок узла.
    */
-  def rightChild: ContextNode = _rightChild
-  def rightChild_=(node: ContextNode): Unit = { _rightChild = node; if (node != null) { node._parent = this } }
+  def rightChild: SymbolNode = _rightChild
+  def rightChild_=(node: SymbolNode): Unit = { _rightChild = node; if (node != null) { node._parent = this } }
 
   /**
    * Проверяет пустоту узла. Узел пуст, когда не имеет потомков.
@@ -33,7 +33,7 @@ sealed trait ContextNode {
   def isEmpty: Boolean = _leftChild == null && _rightChild == null
 }
 
-object ContextNode {
+object SymbolNode {
   /**
    * Типы данных.
    */
@@ -72,39 +72,39 @@ object ContextNode {
   /**
    * Тип объекта "Класс".
    */
-  case class Class(name: String) extends ContextNode
+  case class Class(name: String) extends SymbolNode
 
   /**
    * Тип объекта "Поле".
    */
-  case class Field(name: String, tpe: Type.Value, value: Any) extends ContextNode
+  case class Field(name: String, tpe: Type.Value, value: Any) extends SymbolNode
 
   /**
    * Тип объекта "Метод".
    */
-  case class Method(name: String, tpe: Type.Value) extends ContextNode
+  case class Method(name: String, tpe: Type.Value) extends SymbolNode
 
   /**
    * Тип объекта "Простая переменная".
    */
-  case class Variable(name: String, tpe: Type.Value, value: Any) extends ContextNode
+  case class Variable(name: String, tpe: Type.Value, value: Any) extends SymbolNode
 
   /**
    * Тип объекта "Значение".
    */
-  case class Value(tpe: Type.Value, value: Any) extends ContextNode
+  case class Value(tpe: Type.Value, value: Any) extends SymbolNode
 
   /**
    * Искусственный узел дерева.
    */
-  case class Synthetic() extends ContextNode
+  case class Synthetic() extends SymbolNode
 
   /**
    * Печатает дерево с корнем `node` в формате GraphViz.
    */
-  def dotPrint(node: ContextNode): Unit = {
+  def dotPrint(node: SymbolNode): Unit = {
     println("digraph G {")
-    def _print(node: ContextNode, id: Int = 0): Unit = {
+    def _print(node: SymbolNode, id: Int = 0): Unit = {
       val q = '"'
       val root = s"\tn$id [${if (node.isInstanceOf[Synthetic]) "style=filled, fillcolor=black" else s"label=$q$node$q"}];"
       println(root)

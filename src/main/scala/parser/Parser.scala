@@ -1,6 +1,6 @@
 package parser
 
-import context.ContextNode
+import symbol_table.SymbolNode
 import scanner.Scanner
 import tokens.{Token, TokenType}
 
@@ -14,7 +14,7 @@ import scala.collection.BufferedIterator
 class Parser(private val tokens: BufferedIterator[Token]) {
   class ParseError extends RuntimeException
 
-  type ContextTree = ContextNode
+  type ContextTree = SymbolNode
 
   /**
    * Производит синтаксический разбор кода модуля.
@@ -31,7 +31,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Программа"__.
    */
-  private def program(): ContextNode = {
+  private def program(): SymbolNode = {
     consume("'class' keyword expected", TokenType.CLASS)
     val mainClass = classDeclaration()
     consume("unexpected token after main class declaration", TokenType.EOF)
@@ -41,12 +41,12 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Объявление класса"__.
    */
-  private def classDeclaration(): ContextNode = {
+  private def classDeclaration(): SymbolNode = {
     // Имя класса
     val name = consume("class name expected", TokenType.IDENTIFIER).lexeme
     // Тело класса: начало
     consume("'{' expected", TokenType.LEFT_BRACE)
-    val node = ContextNode.Class(name)
+    val node = SymbolNode.Class(name)
     // Члены класса
     val members = classMembers()
     if (!members.isEmpty) {
@@ -60,9 +60,9 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Члены класса"__.
    */
-  private def classMembers(): ContextNode = {
-    val root = ContextNode.Synthetic()
-    var current: ContextNode = root
+  private def classMembers(): SymbolNode = {
+    val root = SymbolNode.Synthetic()
+    var current: SymbolNode = root
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       current.leftChild = classMember()
       current = current.leftChild
@@ -73,11 +73,11 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Член класса"__.
    */
-  private def classMember(): ContextNode = {
+  private def classMember(): SymbolNode = {
     // Объявление класса
     if (accept(TokenType.CLASS)) return classDeclaration()
     // Тип данных члена класса
-    val tpe: ContextNode.Type.Value = consume(
+    val tpe: SymbolNode.Type.Value = consume(
       "'void', 'int', 'short', 'long' or 'double' keyword expected",
       TokenType.VOID, TokenType.INT, TokenType.SHORT, TokenType.LONG, TokenType.DOUBLE
     ).tpe
@@ -85,7 +85,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     val name = consume("member name expected", TokenType.IDENTIFIER).lexeme
     // Метод
     if (accept(TokenType.LEFT_PAREN)) {
-      val methodRoot = ContextNode.Method(name, tpe)
+      val methodRoot = SymbolNode.Method(name, tpe)
       val methodBody = method()
       if (!methodBody.isEmpty) {
         methodRoot.rightChild = if (methodBody.leftChild != null) methodBody else methodBody.rightChild
@@ -93,15 +93,15 @@ class Parser(private val tokens: BufferedIterator[Token]) {
       return methodRoot
     }
     // Объявление поля
-    val data = dataDeclaration(tpe).asInstanceOf[ContextNode.Value]
-    val fieldRoot = ContextNode.Field(name, tpe, data.value)
+    val data = dataDeclaration(tpe).asInstanceOf[SymbolNode.Value]
+    val fieldRoot = SymbolNode.Field(name, tpe, data.value)
     fieldRoot
   }
 
   /**
    * Разбор синтаксической конструкции __"Метод"__.
    */
-  private def method(): ContextNode = {
+  private def method(): SymbolNode = {
     consume("')' expected", TokenType.RIGHT_PAREN)
     consume("'{' expected", TokenType.LEFT_BRACE)
     block()
@@ -110,12 +110,12 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Объявление и определение данных"__.
    */
-  private def dataDeclaration(tpe: ContextNode.Type.Value): ContextNode = {
+  private def dataDeclaration(tpe: SymbolNode.Type.Value): SymbolNode = {
     // Опциональная инциализация
     val initValue = if (accept(TokenType.EQUAL)) {
-      expression().getOrElse(ContextNode.Value(tpe, ContextNode.Undefined))
+      expression().getOrElse(SymbolNode.Value(tpe, SymbolNode.Undefined))
     } else {
-      ContextNode.Value(tpe, ContextNode.Type.default(tpe))
+      SymbolNode.Value(tpe, SymbolNode.Type.default(tpe))
     }
     consume("';' after declaration expected", TokenType.SEMICOLON)
     initValue
@@ -124,12 +124,12 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Составной оператор"__.
    */
-  private def block(): ContextNode = {
-    val root = ContextNode.Synthetic()
-    var current: ContextNode = null
+  private def block(): SymbolNode = {
+    val root = SymbolNode.Synthetic()
+    var current: SymbolNode = null
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       statement()
-        .filterNot(v => v.isInstanceOf[ContextNode.Synthetic] && v.isEmpty)
+        .filterNot(v => v.isInstanceOf[SymbolNode.Synthetic] && v.isEmpty)
         .foreach { v =>
         if (current == null) {
           root.rightChild = v
@@ -146,7 +146,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Оператор"__.
    */
-  private def statement(): Option[ContextNode] = {
+  private def statement(): Option[SymbolNode] = {
     // Объявление переменной
     val tpe = acceptOption(TokenType.INT, TokenType.SHORT, TokenType.LONG, TokenType.DOUBLE)
     if (tpe.isDefined) tpe.foreach(t => return Some(variableDeclaration(t.tpe)))
@@ -171,11 +171,11 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Объявление и определение переменной"__.
    */
-  private def variableDeclaration(tpe: ContextNode.Type.Value): ContextNode = {
+  private def variableDeclaration(tpe: SymbolNode.Type.Value): SymbolNode = {
     // Имя переменной
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
-    val data = dataDeclaration(tpe).asInstanceOf[ContextNode.Value]
-    val variable = ContextNode.Variable(name, tpe, data.value)
+    val data = dataDeclaration(tpe).asInstanceOf[SymbolNode.Value]
+    val variable = SymbolNode.Variable(name, tpe, data.value)
     variable
   }
 
@@ -190,7 +190,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Оператор switch"__.
    */
-  private def switchStatement(): ContextNode = {
+  private def switchStatement(): SymbolNode = {
     consume("'(' expected", TokenType.LEFT_PAREN)
     // Условие оператора switch
     expression()
@@ -205,9 +205,9 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Ветви switch"__.
    */
-  private def switchBody(): ContextNode = {
-    val root = ContextNode.Synthetic()
-    var current: ContextNode = null
+  private def switchBody(): SymbolNode = {
+    val root = SymbolNode.Synthetic()
+    var current: SymbolNode = null
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       val branch = switchBranch()
       if (!branch.isEmpty) {
@@ -225,7 +225,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Ветвь switch"__.
    */
-  private def switchBranch(): ContextNode = {
+  private def switchBranch(): SymbolNode = {
     // Тип ветки switch
     val caseType = consume("switch case expected", TokenType.CASE, TokenType.DEFAULT)
     caseType.tpe match {
@@ -237,12 +237,12 @@ class Parser(private val tokens: BufferedIterator[Token]) {
         consume("':' after 'default' case label expected", TokenType.COLON)
       case _ =>
     }
-    val root = ContextNode.Synthetic()
-    var current: ContextNode = null
+    val root = SymbolNode.Synthetic()
+    var current: SymbolNode = null
     // Операторы ветви switch
     while (!tokens.headOption.map(_.tpe).exists(t => t == TokenType.CASE || t == TokenType.DEFAULT || t == TokenType.RIGHT_BRACE)) {
       statement()
-        .filterNot(v => v.isInstanceOf[ContextNode.Synthetic] && v.isEmpty)
+        .filterNot(v => v.isInstanceOf[SymbolNode.Synthetic] && v.isEmpty)
         .foreach { v =>
         if (current == null) {
           root.rightChild = v
@@ -258,14 +258,14 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Выражение"__.
    */
-  private def expression(): Option[ContextNode] = {
+  private def expression(): Option[SymbolNode] = {
     assignment()
   }
 
   /**
    * Разбор синтаксической конструкции __"Присваивание"__.
    */
-  private def assignment(): Option[ContextNode] = {
+  private def assignment(): Option[SymbolNode] = {
     // Левая часть присваивания
     var expr = or()
     while (accept(TokenType.EQUAL)) {
@@ -279,7 +279,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Логическое ИЛИ"__.
    */
-  private def or(): Option[ContextNode] = {
+  private def or(): Option[SymbolNode] = {
     // Левая часть оператора ИЛИ
     var expr = and()
     while (accept(TokenType.OR)) {
@@ -293,7 +293,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Логическое И"__.
    */
-  private def and(): Option[ContextNode] = {
+  private def and(): Option[SymbolNode] = {
     // Левая часть оператора И
     var expr = comparison()
     while (accept(TokenType.AND)) {
@@ -307,7 +307,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Операция сравнения"__.
    */
-  private def comparison(): Option[ContextNode] = {
+  private def comparison(): Option[SymbolNode] = {
     // Левая часть сравнения
     var expr = addition()
     while (accept(
@@ -325,7 +325,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Сложение-вычитание"__.
    */
-  private def addition(): Option[ContextNode] = {
+  private def addition(): Option[SymbolNode] = {
     // Левая часть аддитивных операций
     var expr = multiplication()
     while (accept(TokenType.MINUS, TokenType.PLUS)) {
@@ -339,7 +339,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Умножение-деление"__.
    */
-  private def multiplication(): Option[ContextNode] = {
+  private def multiplication(): Option[SymbolNode] = {
     // Левая часть мультипликативных операций
     var expr = unary()
     while (accept(TokenType.SLASH, TokenType.STAR)) {
@@ -353,7 +353,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Унарная операция"__.
    */
-  private def unary(): Option[ContextNode] = {
+  private def unary(): Option[SymbolNode] = {
     // Префиксы унарных операций для элементарной операции
     val hasPref = accept(TokenType.PLUS, TokenType.MINUS, TokenType.PLUS_PLUS, TokenType.MINUS_MINUS, TokenType.BANG)
     // Элементарная операция
@@ -367,10 +367,10 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Элементарное выражение"__.
    */
-  private def primary(): Option[ContextNode] = {
+  private def primary(): Option[SymbolNode] = {
     // Константа
     val number = acceptOption(TokenType.NUMBER_INT, TokenType.NUMBER_EXP)
-    if (number.isDefined) return number.map(x => ContextNode.Value(x.tpe, x.lexeme))
+    if (number.isDefined) return number.map(x => SymbolNode.Value(x.tpe, x.lexeme))
     if (accept(TokenType.LEFT_PAREN)) {
       // Выражение в скобках
       val expr = expression()
