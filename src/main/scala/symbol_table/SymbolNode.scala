@@ -70,13 +70,11 @@ object SymbolNode {
     }
 
     /**
-     * Возвращает стандартное значение для типа данных.
+     * Возвращает образ стандартного значения для типа данных.
      */
-    def default(x: Value): Any = x match {
-      case INT => 0
-      case SHORT => 0.asInstanceOf[Short]
-      case LONG => 0L
-      case DOUBLE => 0.0
+    def default(x: Value): String = x match {
+      case INT | SHORT | LONG => "0"
+      case DOUBLE => "0.E0"
       case _ => throw new IllegalArgumentException("value conversion error")
     }
   }
@@ -108,11 +106,6 @@ object SymbolNode {
    * Тип объекта "Простая переменная".
    */
   case class Variable(name: String, tpe: Type.Value, value: Any) extends SymbolNode
-
-  /**
-   * Тип объекта "Значение".
-   */
-  case class Value(tpe: Type.Value, value: Any) extends SymbolNode
 
   /**
    * Искусственный узел дерева.

@@ -91,8 +91,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
       return
     }
     // Объявление поля
-    val data = dataDeclaration(tpe).asInstanceOf[SymbolNode.Value]
-    symbolTable.setCurrent(SymbolNode.Field(name, tpe, data.value))
+    val (_, value) = dataDeclaration(tpe)
+    symbolTable.setCurrent(SymbolNode.Field(name, tpe, value))
   }
 
   /**
@@ -110,12 +110,12 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Объявление и определение данных"__.
    */
-  private def dataDeclaration(tpe: SymbolNode.Type.Value): SymbolNode = {
+  private def dataDeclaration(tpe: SymbolNode.Type.Value): (SymbolNode.Type.Value, Any) = {
     // Опциональная инциализация
     val initValue = if (accept(TokenType.EQUAL)) {
-      expression().getOrElse(SymbolNode.Value(tpe, SymbolNode.Undefined))
+      expression().getOrElse(tpe, SymbolNode.Undefined)
     } else {
-      SymbolNode.Value(tpe, SymbolNode.Type.default(tpe))
+      (tpe, SymbolNode.Type.default(tpe))
     }
     consume("';' after declaration expected", TokenType.SEMICOLON)
     initValue
@@ -171,8 +171,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   private def variableDeclaration(tpe: SymbolNode.Type.Value): Unit = {
     // Имя переменной
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
-    val data = dataDeclaration(tpe).asInstanceOf[SymbolNode.Value]
-    symbolTable.setCurrent(SymbolNode.Variable(name, tpe, data.value))
+    val (_, value) = dataDeclaration(tpe)
+    symbolTable.setCurrent(SymbolNode.Variable(name, tpe, value))
   }
 
   /**
@@ -247,14 +247,14 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Выражение"__.
    */
-  private def expression(): Option[SymbolNode] = {
+  private def expression(): Option[(SymbolNode.Type.Value, Any)] = {
     assignment()
   }
 
   /**
    * Разбор синтаксической конструкции __"Присваивание"__.
    */
-  private def assignment(): Option[SymbolNode] = {
+  private def assignment(): Option[(SymbolNode.Type.Value, Any)] = {
     // Левая часть присваивания
     var expr = or()
     while (accept(TokenType.EQUAL)) {
@@ -268,7 +268,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Логическое ИЛИ"__.
    */
-  private def or(): Option[SymbolNode] = {
+  private def or(): Option[(SymbolNode.Type.Value, Any)] = {
     // Левая часть оператора ИЛИ
     var expr = and()
     while (accept(TokenType.OR)) {
@@ -282,7 +282,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Логическое И"__.
    */
-  private def and(): Option[SymbolNode] = {
+  private def and(): Option[(SymbolNode.Type.Value, Any)] = {
     // Левая часть оператора И
     var expr = comparison()
     while (accept(TokenType.AND)) {
@@ -296,7 +296,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Операция сравнения"__.
    */
-  private def comparison(): Option[SymbolNode] = {
+  private def comparison(): Option[(SymbolNode.Type.Value, Any)] = {
     // Левая часть сравнения
     var expr = addition()
     while (accept(
@@ -314,7 +314,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Сложение-вычитание"__.
    */
-  private def addition(): Option[SymbolNode] = {
+  private def addition(): Option[(SymbolNode.Type.Value, Any)] = {
     // Левая часть аддитивных операций
     var expr = multiplication()
     while (accept(TokenType.MINUS, TokenType.PLUS)) {
@@ -328,7 +328,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Умножение-деление"__.
    */
-  private def multiplication(): Option[SymbolNode] = {
+  private def multiplication(): Option[(SymbolNode.Type.Value, Any)] = {
     // Левая часть мультипликативных операций
     var expr = unary()
     while (accept(TokenType.SLASH, TokenType.STAR)) {
@@ -342,7 +342,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Унарная операция"__.
    */
-  private def unary(): Option[SymbolNode] = {
+  private def unary(): Option[(SymbolNode.Type.Value, Any)] = {
     // Префиксы унарных операций для элементарной операции
     val hasPref = accept(TokenType.PLUS, TokenType.MINUS, TokenType.PLUS_PLUS, TokenType.MINUS_MINUS, TokenType.BANG)
     // Элементарная операция
@@ -356,10 +356,10 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Элементарное выражение"__.
    */
-  private def primary(): Option[SymbolNode] = {
+  private def primary(): Option[(SymbolNode.Type.Value, Any)] = {
     // Константа
     val number = acceptOption(TokenType.NUMBER_INT, TokenType.NUMBER_EXP)
-    if (number.isDefined) return number.map(x => SymbolNode.Value(x.tpe, x.lexeme))
+    if (number.isDefined) return number.map(x => (x.tpe, x.lexeme))
     if (accept(TokenType.LEFT_PAREN)) {
       // Выражение в скобках
       val expr = expression()
