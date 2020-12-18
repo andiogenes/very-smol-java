@@ -208,11 +208,12 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     val root = symbolTable.setCurrent(SymbolNode.Synthetic())
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       val prev = symbolTable.current
-      switchBranch()
-      if (prev == root) {
-        prev.rightChild = symbolTable.current
-      } else {
-        prev.leftChild = symbolTable.current
+      if (switchBranch()) {
+        if (prev == root) {
+          prev.rightChild = symbolTable.current
+        } else {
+          prev.leftChild = symbolTable.current
+        }
       }
     }
     symbolTable.setCurrent(root)
@@ -221,7 +222,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Ветвь switch"__.
    */
-  private def switchBranch(): Unit = {
+  private def switchBranch(): Boolean = {
     // Тип ветки switch
     val caseType = consume("switch case expected", TokenType.CASE, TokenType.DEFAULT)
     caseType.tpe match {
@@ -233,6 +234,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
         consume("':' after 'default' case label expected", TokenType.COLON)
       case _ =>
     }
+    val prev = symbolTable.current
     val root = symbolTable.setCurrent(SymbolNode.Synthetic())
     // Операторы ветви switch
     while (!tokens.headOption.map(_.tpe).exists(t => t == TokenType.CASE || t == TokenType.DEFAULT || t == TokenType.RIGHT_BRACE)) {
@@ -245,7 +247,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
         }
       }
     }
-    symbolTable.setCurrent(root)
+    symbolTable.setCurrent(if (root.isEmpty) prev else root)
+    !root.isEmpty
   }
 
   /**
