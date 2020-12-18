@@ -126,7 +126,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Составной оператор"__.
    */
-  private def block(isMethodBlock: Boolean = false): Unit = {
+  private def block(isMethodBlock: Boolean = false): Boolean = {
+    val prev = symbolTable.current
     val root = if (isMethodBlock) symbolTable.current else symbolTable.setCurrent(SymbolNode.Synthetic())
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       val prev = symbolTable.current
@@ -138,8 +139,9 @@ class Parser(private val tokens: BufferedIterator[Token]) {
         }
       }
     }
-    symbolTable.setCurrent(root)
+    symbolTable.setCurrent(if (root.isEmpty) prev else root)
     consume("'}' after block expected", TokenType.RIGHT_BRACE)
+    !root.isEmpty
   }
 
   /**
@@ -152,7 +154,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     // Объявление класса
     if (accept(TokenType.CLASS)) { classDeclaration(); return true }
     // Составной оператор
-    if (accept(TokenType.LEFT_BRACE)) { block(); return true }
+    if (accept(TokenType.LEFT_BRACE)) { return block() }
     // Пустой оператор
     if (accept(TokenType.SEMICOLON)) return false
     // Оператор break
