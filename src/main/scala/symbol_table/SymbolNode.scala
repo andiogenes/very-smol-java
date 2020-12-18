@@ -19,13 +19,33 @@ sealed trait SymbolNode {
    * Левый ребенок узла.
    */
   def leftChild: SymbolNode = _leftChild
-  def leftChild_=(node: SymbolNode): Unit = { _leftChild = node; if (node != null) { node._parent = this } }
+  def leftChild_=(node: SymbolNode): Unit = {
+    if (_leftChild != null) {
+      _leftChild._parent = null
+    }
+
+    _leftChild = node
+
+    if (node != null) {
+      node._parent = this
+    }
+  }
 
   /**
    * Правый ребенок узла.
    */
   def rightChild: SymbolNode = _rightChild
-  def rightChild_=(node: SymbolNode): Unit = { _rightChild = node; if (node != null) { node._parent = this } }
+  def rightChild_=(node: SymbolNode): Unit = {
+    if (_rightChild != null) {
+      _rightChild._parent = null
+    }
+
+    _rightChild = node
+
+    if (node != null) {
+      node._parent = this
+    }
+  }
 
   /**
    * Проверяет пустоту узла. Узел пуст, когда не имеет потомков.
@@ -97,7 +117,11 @@ object SymbolNode {
   /**
    * Искусственный узел дерева.
    */
-  case class Synthetic() extends SymbolNode
+  class Synthetic() extends SymbolNode
+
+  object Synthetic {
+    def apply(): Synthetic = new Synthetic()
+  }
 
   /**
    * Печатает дерево с корнем `node` в формате GraphViz.

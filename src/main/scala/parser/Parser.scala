@@ -1,6 +1,6 @@
 package parser
 
-import symbol_table.SymbolNode
+import symbol_table.{SymbolNode, SymbolTable}
 import scanner.Scanner
 import tokens.{Token, TokenType}
 
@@ -14,14 +14,15 @@ import scala.collection.BufferedIterator
 class Parser(private val tokens: BufferedIterator[Token]) {
   class ParseError extends RuntimeException
 
-  type ContextTree = SymbolNode
+  val symbolTable = new SymbolTable()
 
   /**
    * Производит синтаксический разбор кода модуля.
    */
-  def parse(): Option[ContextTree] = {
+  def parse(): Option[SymbolTable] = {
     try {
-      Some(program())
+      program()
+      Some(symbolTable).filter(_.root != null)
     } catch {
       case _: ParseError =>
         None
@@ -31,51 +32,51 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Программа"__.
    */
-  private def program(): SymbolNode = {
+  private def program(): Unit = {
     consume("'class' keyword expected", TokenType.CLASS)
-    val mainClass = classDeclaration()
+    classDeclaration(isMainClass = true)
     consume("unexpected token after main class declaration", TokenType.EOF)
-    mainClass
   }
 
   /**
    * Разбор синтаксической конструкции __"Объявление класса"__.
    */
-  private def classDeclaration(): SymbolNode = {
+  private def classDeclaration(isMainClass: Boolean = false): Unit = {
     // Имя класса
     val name = consume("class name expected", TokenType.IDENTIFIER).lexeme
     // Тело класса: начало
     consume("'{' expected", TokenType.LEFT_BRACE)
-    val node = SymbolNode.Class(name)
+    // Соответствующий узел таблицы
+    val node = symbolTable.setCurrent(SymbolNode.Class(name))
+    if (isMainClass) symbolTable.root = node
     // Члены класса
-    val members = classMembers()
-    if (!members.isEmpty) {
-      node.rightChild = members
-    }
+    classMembers()
+    symbolTable.setCurrent(node)
     // Тело класса: конец
     consume("'}' expected", TokenType.RIGHT_BRACE)
-    node
   }
 
   /**
    * Разбор синтаксической конструкции __"Члены класса"__.
    */
-  private def classMembers(): SymbolNode = {
+  private def classMembers(): Unit = {
+    // Узел таблицы
     val root = SymbolNode.Synthetic()
-    var current: SymbolNode = root
+    symbolTable.current.rightChild = symbolTable.setCurrent(root)
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
-      current.leftChild = classMember()
-      current = current.leftChild
+      val prev = symbolTable.current
+      classMember()
+      prev.leftChild = symbolTable.current
     }
-    root
+    symbolTable.setCurrent(root)
   }
 
   /**
    * Разбор синтаксической конструкции __"Член класса"__.
    */
-  private def classMember(): SymbolNode = {
+  private def classMember(): Unit = {
     // Объявление класса
-    if (accept(TokenType.CLASS)) return classDeclaration()
+    if (accept(TokenType.CLASS)) { classDeclaration(); return }
     // Тип данных члена класса
     val tpe: SymbolNode.Type.Value = consume(
       "'void', 'int', 'short', 'long' or 'double' keyword expected",
@@ -85,26 +86,25 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     val name = consume("member name expected", TokenType.IDENTIFIER).lexeme
     // Метод
     if (accept(TokenType.LEFT_PAREN)) {
-      val methodRoot = SymbolNode.Method(name, tpe)
-      val methodBody = method()
-      if (!methodBody.isEmpty) {
-        methodRoot.rightChild = if (methodBody.leftChild != null) methodBody else methodBody.rightChild
-      }
-      return methodRoot
+      val root = symbolTable.setCurrent(SymbolNode.Method(name, tpe))
+      method()
+      return
     }
     // Объявление поля
     val data = dataDeclaration(tpe).asInstanceOf[SymbolNode.Value]
-    val fieldRoot = SymbolNode.Field(name, tpe, data.value)
-    fieldRoot
+    symbolTable.setCurrent(SymbolNode.Field(name, tpe, data.value))
   }
 
   /**
    * Разбор синтаксической конструкции __"Метод"__.
    */
-  private def method(): SymbolNode = {
+  private def method(): Unit = {
     consume("')' expected", TokenType.RIGHT_PAREN)
     consume("'{' expected", TokenType.LEFT_BRACE)
+    val prev = symbolTable.current
     block()
+    prev.rightChild = symbolTable.current
+    symbolTable.setCurrent(prev)
   }
 
   /**
@@ -124,59 +124,55 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Составной оператор"__.
    */
-  private def block(): SymbolNode = {
-    val root = SymbolNode.Synthetic()
-    var current: SymbolNode = null
+  private def block(): Unit = {
+    val root = symbolTable.setCurrent(SymbolNode.Synthetic())
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
-      statement()
-        .filterNot(v => v.isInstanceOf[SymbolNode.Synthetic] && v.isEmpty)
-        .foreach { v =>
-        if (current == null) {
-          root.rightChild = v
+      val prev = symbolTable.current
+      if (statement()) {
+        if (prev == root) {
+          prev.rightChild = symbolTable.current
         } else {
-          current.leftChild = v
+          prev.leftChild = symbolTable.current
         }
-        current = v
       }
     }
+    symbolTable.setCurrent(root)
     consume("'}' after block expected", TokenType.RIGHT_BRACE)
-    root
   }
 
   /**
    * Разбор синтаксической конструкции __"Оператор"__.
    */
-  private def statement(): Option[SymbolNode] = {
+  private def statement(): Boolean = {
     // Объявление переменной
     val tpe = acceptOption(TokenType.INT, TokenType.SHORT, TokenType.LONG, TokenType.DOUBLE)
-    if (tpe.isDefined) tpe.foreach(t => return Some(variableDeclaration(t.tpe)))
+    if (tpe.isDefined) tpe.foreach { t => variableDeclaration(t.tpe); return true }
     // Объявление класса
-    if (accept(TokenType.CLASS)) return Some(classDeclaration())
+    if (accept(TokenType.CLASS)) { classDeclaration(); return true }
     // Составной оператор
-    if (accept(TokenType.LEFT_BRACE)) return Some(block())
+    if (accept(TokenType.LEFT_BRACE)) { block(); return true }
     // Пустой оператор
-    if (accept(TokenType.SEMICOLON)) return None
+    if (accept(TokenType.SEMICOLON)) return false
     // Оператор break
-    if (accept(TokenType.BREAK)) { consume("';' after break expected", TokenType.SEMICOLON); return None }
+    if (accept(TokenType.BREAK)) { consume("';' after break expected", TokenType.SEMICOLON); return false }
     // Оператор return
-    if (accept(TokenType.RETURN)) { returnStatement(); return None }
+    if (accept(TokenType.RETURN)) { returnStatement(); return false }
     // Оператор switch
-    if (accept(TokenType.SWITCH)) return Some(switchStatement())
+    if (accept(TokenType.SWITCH)) { switchStatement(); return true }
     // Выражение
     expression()
     consume("';' after declaration expected", TokenType.SEMICOLON)
-    None
+    false
   }
 
   /**
    * Разбор синтаксической конструкции __"Объявление и определение переменной"__.
    */
-  private def variableDeclaration(tpe: SymbolNode.Type.Value): SymbolNode = {
+  private def variableDeclaration(tpe: SymbolNode.Type.Value): Unit = {
     // Имя переменной
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
     val data = dataDeclaration(tpe).asInstanceOf[SymbolNode.Value]
-    val variable = SymbolNode.Variable(name, tpe, data.value)
-    variable
+    symbolTable.setCurrent(SymbolNode.Variable(name, tpe, data.value))
   }
 
   /**
@@ -190,42 +186,38 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Оператор switch"__.
    */
-  private def switchStatement(): SymbolNode = {
+  private def switchStatement(): Unit = {
     consume("'(' expected", TokenType.LEFT_PAREN)
     // Условие оператора switch
     expression()
     consume("')' expected", TokenType.RIGHT_PAREN)
     consume("'{' expected", TokenType.LEFT_BRACE)
     // Тело оператора switch
-    val body = switchBody()
+    switchBody()
     consume("'}' expected", TokenType.RIGHT_BRACE)
-    body
   }
 
   /**
    * Разбор синтаксической конструкции __"Ветви switch"__.
    */
-  private def switchBody(): SymbolNode = {
-    val root = SymbolNode.Synthetic()
-    var current: SymbolNode = null
+  private def switchBody(): Unit = {
+    val root = symbolTable.setCurrent(SymbolNode.Synthetic())
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
-      val branch = switchBranch()
-      if (!branch.isEmpty) {
-        if (current == null) {
-          root.rightChild = branch
-        } else {
-          current.leftChild = branch
-        }
-        current = branch
+      val prev = symbolTable.current
+      switchBranch()
+      if (prev == root) {
+        prev.rightChild = symbolTable.current
+      } else {
+        prev.leftChild = symbolTable.current
       }
     }
-    root
+    symbolTable.setCurrent(root)
   }
 
   /**
    * Разбор синтаксической конструкции __"Ветвь switch"__.
    */
-  private def switchBranch(): SymbolNode = {
+  private def switchBranch(): Unit = {
     // Тип ветки switch
     val caseType = consume("switch case expected", TokenType.CASE, TokenType.DEFAULT)
     caseType.tpe match {
@@ -237,22 +229,19 @@ class Parser(private val tokens: BufferedIterator[Token]) {
         consume("':' after 'default' case label expected", TokenType.COLON)
       case _ =>
     }
-    val root = SymbolNode.Synthetic()
-    var current: SymbolNode = null
+    val root = symbolTable.setCurrent(SymbolNode.Synthetic())
     // Операторы ветви switch
     while (!tokens.headOption.map(_.tpe).exists(t => t == TokenType.CASE || t == TokenType.DEFAULT || t == TokenType.RIGHT_BRACE)) {
-      statement()
-        .filterNot(v => v.isInstanceOf[SymbolNode.Synthetic] && v.isEmpty)
-        .foreach { v =>
-        if (current == null) {
-          root.rightChild = v
+      val prev = symbolTable.current
+      if (statement()) {
+        if (prev == root) {
+          prev.rightChild = symbolTable.current
         } else {
-          current.leftChild = v
+          prev.leftChild = symbolTable.current
         }
-        current = v
       }
     }
-    root
+    symbolTable.setCurrent(root)
   }
 
   /**

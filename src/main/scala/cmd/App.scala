@@ -16,5 +16,5 @@ object App extends App {
   val parser = new Parser(scanner.buffered)
 
   val tree = parser.parse()
-  tree.foreach(SymbolNode.dotPrint)
+  tree.map(_.root).foreach(SymbolNode.dotPrint)
 }
