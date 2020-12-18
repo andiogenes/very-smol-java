@@ -61,12 +61,15 @@ class Parser(private val tokens: BufferedIterator[Token]) {
    */
   private def classMembers(): Unit = {
     // Узел таблицы
-    val root = SymbolNode.Synthetic()
-    symbolTable.current.rightChild = symbolTable.setCurrent(root)
+    val root = symbolTable.current
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       val prev = symbolTable.current
       classMember()
-      prev.leftChild = symbolTable.current
+      if (prev == root) {
+        prev.rightChild = symbolTable.current
+      } else {
+        prev.leftChild = symbolTable.current
+      }
     }
     symbolTable.setCurrent(root)
   }
@@ -102,8 +105,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     consume("')' expected", TokenType.RIGHT_PAREN)
     consume("'{' expected", TokenType.LEFT_BRACE)
     val prev = symbolTable.current
-    block()
-    prev.rightChild = symbolTable.current
+    block(isMethodBlock = true)
     symbolTable.setCurrent(prev)
   }
 
@@ -124,8 +126,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Составной оператор"__.
    */
-  private def block(): Unit = {
-    val root = symbolTable.setCurrent(SymbolNode.Synthetic())
+  private def block(isMethodBlock: Boolean = false): Unit = {
+    val root = if (isMethodBlock) symbolTable.current else symbolTable.setCurrent(SymbolNode.Synthetic())
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       val prev = symbolTable.current
       if (statement()) {
