@@ -3,5 +3,13 @@ digraph G {
 	n0 -> n1;
 	n0 -> n2;
 	n1 [label="left", style=filled, fillcolor=gray];
-	n2 [label="right", style=filled, fillcolor=gray];
+	n2 [label="Method(main,VOID)"];
+	n2 -> n5;
+	n2 -> n6;
+	n5 [label="left", style=filled, fillcolor=gray];
+	n6 [label="Variable(foo,INT,5)"];
+	n6 -> n13;
+	n6 -> n14;
+	n13 [label="left", style=filled, fillcolor=gray];
+	n14 [label="right", style=filled, fillcolor=gray];
 }

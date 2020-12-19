@@ -11,5 +11,9 @@ digraph G {
 	n6 -> n13;
 	n6 -> n14;
 	n13 [label="left", style=filled, fillcolor=gray];
-	n14 [label="right", style=filled, fillcolor=gray];
+	n14 [style=filled, fillcolor=black];
+	n14 -> n29;
+	n14 -> n30;
+	n29 [label="left", style=filled, fillcolor=gray];
+	n30 [label="right", style=filled, fillcolor=gray];
 }

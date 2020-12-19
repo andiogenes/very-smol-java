@@ -40,13 +40,13 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Объявление класса"__.
    */
-  private def classDeclaration(isMainClass: Boolean = false): Unit = {
+  private def classDeclaration(isMainClass: Boolean = false, _root: SymbolNode = null): Unit = {
     // Имя класса
     val name = consume("class name expected", TokenType.IDENTIFIER).lexeme
     // Тело класса: начало
     consume("'{' expected", TokenType.LEFT_BRACE)
     // Соответствующий узел таблицы
-    val node = symbolTable.setCurrent(SymbolNode.Class(name))
+    val node = symbolTable.setCurrent(SymbolNode.Class(name), _root)
     if (isMainClass) symbolTable.root = node
     // Члены класса
     classMembers()
@@ -62,13 +62,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     // Узел таблицы
     val root = symbolTable.current
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
-      val prev = symbolTable.current
-      classMember()
-      if (prev == root) {
-        prev.rightChild = symbolTable.current
-      } else {
-        prev.leftChild = symbolTable.current
-      }
+      classMember(_root = root)
     }
     symbolTable.setCurrent(root)
   }
@@ -76,9 +70,9 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Член класса"__.
    */
-  private def classMember(): Unit = {
+  private def classMember(_root: SymbolNode = null): Unit = {
     // Объявление класса
-    if (accept(TokenType.CLASS)) { classDeclaration(); return }
+    if (accept(TokenType.CLASS)) { classDeclaration(_root = _root); return }
     // Тип данных члена класса
     val tpe: SymbolNode.Type.Value = consume(
       "'void', 'int', 'short', 'long' or 'double' keyword expected",
@@ -88,13 +82,13 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     val name = consume("member name expected", TokenType.IDENTIFIER).lexeme
     // Метод
     if (accept(TokenType.LEFT_PAREN)) {
-      val root = symbolTable.setCurrent(SymbolNode.Method(name, tpe))
+      symbolTable.setCurrent(SymbolNode.Method(name, tpe), _root)
       method()
       return
     }
     // Объявление поля
     val (_, value) = dataDeclaration(tpe)
-    symbolTable.setCurrent(SymbolNode.Field(name, tpe, value))
+    symbolTable.setCurrent(SymbolNode.Field(name, tpe, value), _root)
   }
 
   /**
@@ -125,18 +119,11 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Составной оператор"__.
    */
-  private def block(isMethodBlock: Boolean = false): Boolean = {
+  private def block(isMethodBlock: Boolean = false, _root: SymbolNode = null): Boolean = {
     val prev = symbolTable.current
-    val root = if (isMethodBlock) symbolTable.current else symbolTable.setCurrent(SymbolNode.Synthetic())
+    val root = if (isMethodBlock) symbolTable.current else symbolTable.setCurrent(SymbolNode.Synthetic(), _root)
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
-      val prev = symbolTable.current
-      if (statement()) {
-        if (prev == root) {
-          prev.rightChild = symbolTable.current
-        } else {
-          prev.leftChild = symbolTable.current
-        }
-      }
+      statement(_root = root)
     }
     symbolTable.setCurrent(if (root.isEmpty) prev else root)
     consume("'}' after block expected", TokenType.RIGHT_BRACE)
@@ -146,14 +133,14 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Оператор"__.
    */
-  private def statement(): Boolean = {
+  private def statement(_root: SymbolNode = null): Boolean = {
     // Объявление переменной
     val tpe = acceptOption(TokenType.INT, TokenType.SHORT, TokenType.LONG, TokenType.DOUBLE)
-    if (tpe.isDefined) tpe.foreach { t => variableDeclaration(t.tpe); return true }
+    if (tpe.isDefined) tpe.foreach { t => variableDeclaration(t.tpe, _root = _root); return true }
     // Объявление класса
-    if (accept(TokenType.CLASS)) { classDeclaration(); return true }
+    if (accept(TokenType.CLASS)) { classDeclaration(_root = _root); return true }
     // Составной оператор
-    if (accept(TokenType.LEFT_BRACE)) { return block() }
+    if (accept(TokenType.LEFT_BRACE)) { return block(_root = _root) }
     // Пустой оператор
     if (accept(TokenType.SEMICOLON)) return false
     // Оператор break
@@ -161,7 +148,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     // Оператор return
     if (accept(TokenType.RETURN)) { returnStatement(); return false }
     // Оператор switch
-    if (accept(TokenType.SWITCH)) { switchStatement(); return true }
+    if (accept(TokenType.SWITCH)) { switchStatement(_root = _root); return true }
     // Выражение
     expression()
     consume("';' after declaration expected", TokenType.SEMICOLON)
@@ -171,11 +158,11 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Объявление и определение переменной"__.
    */
-  private def variableDeclaration(tpe: SymbolNode.Type.Value): Unit = {
+  private def variableDeclaration(tpe: SymbolNode.Type.Value, _root: SymbolNode = null): Unit = {
     // Имя переменной
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
     val (_, value) = dataDeclaration(tpe)
-    symbolTable.setCurrent(SymbolNode.Variable(name, tpe, value))
+    symbolTable.setCurrent(SymbolNode.Variable(name, tpe, value), _root)
   }
 
   /**
@@ -189,31 +176,24 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Оператор switch"__.
    */
-  private def switchStatement(): Unit = {
+  private def switchStatement(_root: SymbolNode = null): Unit = {
     consume("'(' expected", TokenType.LEFT_PAREN)
     // Условие оператора switch
     expression()
     consume("')' expected", TokenType.RIGHT_PAREN)
     consume("'{' expected", TokenType.LEFT_BRACE)
     // Тело оператора switch
-    switchBody()
+    switchBody(_root = _root)
     consume("'}' expected", TokenType.RIGHT_BRACE)
   }
 
   /**
    * Разбор синтаксической конструкции __"Ветви switch"__.
    */
-  private def switchBody(): Unit = {
-    val root = symbolTable.setCurrent(SymbolNode.Synthetic())
+  private def switchBody(_root: SymbolNode = null): Unit = {
+    val root = symbolTable.setCurrent(SymbolNode.Synthetic(), _root)
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
-      val prev = symbolTable.current
-      if (switchBranch()) {
-        if (prev == root) {
-          prev.rightChild = symbolTable.current
-        } else {
-          prev.leftChild = symbolTable.current
-        }
-      }
+      switchBranch(_root = root)
     }
     symbolTable.setCurrent(root)
   }
@@ -221,7 +201,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Ветвь switch"__.
    */
-  private def switchBranch(): Boolean = {
+  private def switchBranch(_root: SymbolNode = null): Boolean = {
     // Тип ветки switch
     val caseType = consume("switch case expected", TokenType.CASE, TokenType.DEFAULT)
     caseType.tpe match {
@@ -234,17 +214,10 @@ class Parser(private val tokens: BufferedIterator[Token]) {
       case _ =>
     }
     val prev = symbolTable.current
-    val root = symbolTable.setCurrent(SymbolNode.Synthetic())
+    val root = symbolTable.setCurrent(SymbolNode.Synthetic(), _root)
     // Операторы ветви switch
     while (!tokens.headOption.map(_.tpe).exists(t => t == TokenType.CASE || t == TokenType.DEFAULT || t == TokenType.RIGHT_BRACE)) {
-      val prev = symbolTable.current
-      if (statement()) {
-        if (prev == root) {
-          prev.rightChild = symbolTable.current
-        } else {
-          prev.leftChild = symbolTable.current
-        }
-      }
+      statement(_root = root)
     }
     symbolTable.setCurrent(if (root.isEmpty) prev else root)
     !root.isEmpty
