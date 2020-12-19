@@ -2,6 +2,8 @@ package parser
 
 import symbol_table.{SymbolNode, SymbolTable}
 import scanner.Scanner
+import semantic.SemanticAnalyzer.assertSemantic
+import semantic.{Expr, SemanticAnalyzer}
 import tokens.{Token, TokenType}
 
 import scala.collection.BufferedIterator
@@ -47,10 +49,18 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     consume("'{' expected", TokenType.LEFT_BRACE)
     // Соответствующий узел таблицы
     val node = symbolTable.setCurrent(SymbolNode.Class(name), _root)
-    if (isMainClass) symbolTable.root = node
+    // Семантическое условие "В области видимости нет классов с таким же именем".
+    SemanticAnalyzer.checkNoSameDeclarationsInScope(node)
+    if (isMainClass) {
+      symbolTable.root = node
+      // Семантическое условие "На самом верхнем уровне должен быть класс Main."
+      SemanticAnalyzer.checkTopmostClassIsMain(node)
+    }
     // Члены класса
     classMembers()
     symbolTable.setCurrent(node)
+    // Семантическое условие "Главный класс должен иметь метод `void main()`
+    if (isMainClass) SemanticAnalyzer.checkClassHasMethod(node, "main", SymbolNode.Type.VOID)
     // Тело класса: конец
     consume("'}' expected", TokenType.RIGHT_BRACE)
   }
@@ -60,7 +70,9 @@ class Parser(private val tokens: BufferedIterator[Token]) {
    */
   private def classMembers(): Unit = {
     // Узел таблицы
-    val root = symbolTable.current
+    val prev = symbolTable.current
+    val root = symbolTable.setCurrent(SymbolNode.Synthetic())
+    prev.rightChild = root
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       classMember(_root = root)
     }
@@ -83,12 +95,19 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     // Метод
     if (accept(TokenType.LEFT_PAREN)) {
       symbolTable.setCurrent(SymbolNode.Method(name, tpe), _root)
+      // Семантическое условие "В области видимости нет методов с таким же именем."
+      SemanticAnalyzer.checkNoSameDeclarationsInScope(symbolTable.current)
+      // Семантическое условие "Наличие или отсутствие return в методе."
+      SemanticAnalyzer.enterMethod()
       method()
+      SemanticAnalyzer.leaveMethod(tpe == SymbolNode.Type.VOID)
       return
     }
     // Объявление поля
     val (_, value) = dataDeclaration(tpe)
     symbolTable.setCurrent(SymbolNode.Field(name, tpe, value), _root)
+    // Семантическое условие "В области видимости нет полей с таким же именем."
+    SemanticAnalyzer.checkNoSameDeclarationsInScope(symbolTable.current)
   }
 
   /**
@@ -108,10 +127,15 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   private def dataDeclaration(tpe: SymbolNode.Type.Value): (SymbolNode.Type.Value, Any) = {
     // Опциональная инциализация
     val initValue = if (accept(TokenType.EQUAL)) {
-      expression().getOrElse(tpe, SymbolNode.Undefined)
+      expression().map {
+        case Expr.Value(tpe, value) => (tpe, value)
+        case Expr.Reference(_, tpe) => (tpe, SymbolNode.Undefined)
+      }.getOrElse(tpe, SymbolNode.Undefined)
     } else {
       (tpe, SymbolNode.Type.default(tpe))
     }
+    // Семантическое условие "Корректное приведение типов при объявлении данных".
+    SemanticAnalyzer.checkTypeConsistency(from = initValue._1, to = tpe, literal = initValue._2 != SymbolNode.Undefined)
     consume("';' after declaration expected", TokenType.SEMICOLON)
     initValue
   }
@@ -121,7 +145,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
    */
   private def block(isMethodBlock: Boolean = false, _root: SymbolNode = null): Boolean = {
     val prev = symbolTable.current
-    val root = if (isMethodBlock) symbolTable.current else symbolTable.setCurrent(SymbolNode.Synthetic(), _root)
+    val root = symbolTable.setCurrent(SymbolNode.Synthetic(), _root)
+    if (isMethodBlock) prev.rightChild = symbolTable.current
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       statement(_root = root)
     }
@@ -137,14 +162,17 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     // Объявление переменной
     val tpe = acceptOption(TokenType.INT, TokenType.SHORT, TokenType.LONG, TokenType.DOUBLE)
     if (tpe.isDefined) tpe.foreach { t => variableDeclaration(t.tpe, _root = _root); return true }
-    // Объявление класса
-    if (accept(TokenType.CLASS)) { classDeclaration(_root = _root); return true }
     // Составной оператор
     if (accept(TokenType.LEFT_BRACE)) { return block(_root = _root) }
     // Пустой оператор
     if (accept(TokenType.SEMICOLON)) return false
     // Оператор break
-    if (accept(TokenType.BREAK)) { consume("';' after break expected", TokenType.SEMICOLON); return false }
+    if (accept(TokenType.BREAK)) {
+      // Семантическое условие "break только внутри switch."
+      assertSemantic(SemanticAnalyzer.switchNesting > 0, "break outside of switch statement")
+      consume("';' after break expected", TokenType.SEMICOLON)
+      return false
+    }
     // Оператор return
     if (accept(TokenType.RETURN)) { returnStatement(); return false }
     // Оператор switch
@@ -163,20 +191,28 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
     val (_, value) = dataDeclaration(tpe)
     symbolTable.setCurrent(SymbolNode.Variable(name, tpe, value), _root)
+    // Семантическое условие "В области видимости нет переменных с таким же именем."
+    SemanticAnalyzer.checkNoSameDeclarationsInScope(symbolTable.current)
   }
 
   /**
    * Разбор синтаксической конструкции __"Оператор return"__.
    */
   private def returnStatement(): Unit = {
-    // Возвращаемое выражение
-    if (!tokens.headOption.exists(_.tpe == TokenType.SEMICOLON)) expression()
+    // Возвращаемое значение
+    val returnValue = if (!tokens.headOption.exists(_.tpe == TokenType.SEMICOLON)) expression() else None
+    // Семантическое условие "return возвращает правильное значение"
+    SemanticAnalyzer.checkProperReturn(symbolTable.current, returnValue)
+    // Семантическое условие "return должен быть указан/не обязателен"
+    SemanticAnalyzer.captureReturn()
   }
 
   /**
    * Разбор синтаксической конструкции __"Оператор switch"__.
    */
   private def switchStatement(_root: SymbolNode = null): Unit = {
+    // Семантика: вход в switch
+    SemanticAnalyzer.increaseSwitchNesting()
     consume("'(' expected", TokenType.LEFT_PAREN)
     // Условие оператора switch
     expression()
@@ -185,6 +221,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     // Тело оператора switch
     switchBody(_root = _root)
     consume("'}' expected", TokenType.RIGHT_BRACE)
+    // Семантика: выход из switch
+    SemanticAnalyzer.decreaseSwitchNesting()
   }
 
   /**
@@ -226,20 +264,25 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Выражение"__.
    */
-  private def expression(): Option[(SymbolNode.Type.Value, Any)] = {
+  private def expression(): Option[Expr] = {
     assignment()
   }
 
   /**
    * Разбор синтаксической конструкции __"Присваивание"__.
    */
-  private def assignment(): Option[(SymbolNode.Type.Value, Any)] = {
+  private def assignment(): Option[Expr] = {
     // Левая часть присваивания
-    var expr = or()
+    val expr = or()
     while (accept(TokenType.EQUAL)) {
+      // Семантическое условие "Присваивать можно только именованным значениям."
+      assertSemantic(expr.exists(_.isInstanceOf[Expr.Reference]), "cannot assign to value")
       // Правая часть присваивания
-      or()
-      expr = None
+      // Семантическое условие "Корректное приведение типов при присваивании."
+      expr.foreach(l => or().foreach(r => SemanticAnalyzer.checkTypeConsistency(from = r.tpe, to = l.tpe, literal = r match {
+        case Expr.Value(_, value) => value != SymbolNode.Undefined
+        case _ => false
+      })))
     }
     expr
   }
@@ -247,13 +290,18 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Логическое ИЛИ"__.
    */
-  private def or(): Option[(SymbolNode.Type.Value, Any)] = {
+  private def or(): Option[Expr] = {
     // Левая часть оператора ИЛИ
-    var expr = and()
+    val expr = and()
     while (accept(TokenType.OR)) {
+      // Семантическое условие "Логические операторы работают только с целочисленными типами"
+      assertSemantic(
+        expr.exists(v => v.tpe != SymbolNode.Type.VOID && v.tpe != SymbolNode.Type.DOUBLE),
+        "logical operations works with operands of type INT, SHORT, LONG"
+      )
       // Правая часть оператора ИЛИ
-      and()
-      expr = None
+      // Семантика: расширение типа значения
+      expr.foreach(l => and().foreach(r => SemanticAnalyzer.wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
     }
     expr
   }
@@ -261,13 +309,18 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Логическое И"__.
    */
-  private def and(): Option[(SymbolNode.Type.Value, Any)] = {
+  private def and(): Option[Expr] = {
     // Левая часть оператора И
-    var expr = comparison()
+    val expr = comparison()
     while (accept(TokenType.AND)) {
+      // Семантическое условие "Логические операторы работают только с целочисленными типами"
+      assertSemantic(
+        expr.exists(v => v.tpe != SymbolNode.Type.VOID && v.tpe != SymbolNode.Type.DOUBLE),
+        "logical operations works with operands of type INT, SHORT, LONG"
+      )
       // Правая часть оператора И
-      comparison()
-      expr = None
+      // Семантика: расширение типа значения
+      expr.foreach(l => comparison().foreach(r => SemanticAnalyzer.wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
     }
     expr
   }
@@ -275,31 +328,36 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Операция сравнения"__.
    */
-  private def comparison(): Option[(SymbolNode.Type.Value, Any)] = {
+  private def comparison(): Option[Expr] = {
     // Левая часть сравнения
-    var expr = addition()
+    val expr = addition()
     while (accept(
       TokenType.LESS, TokenType.LESS_EQUAL,
       TokenType.GREATER, TokenType.GREATER_EQUAL,
       TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL
     )) {
+      // Семантическое условие "Выражение типа void не может быть операндом бинарной операции"
+      assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "comparison operand shouldn't be VOID")
       // Правая часть сравнения
-      addition()
-      expr = None
+      // Семантика: расширение типа значения
+      expr.foreach(l => addition().foreach(r => SemanticAnalyzer.wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
     }
+    expr.foreach(_.tpe = TokenType.INT)
     expr
   }
 
   /**
    * Разбор синтаксической конструкции __"Сложение-вычитание"__.
    */
-  private def addition(): Option[(SymbolNode.Type.Value, Any)] = {
+  private def addition(): Option[Expr] = {
     // Левая часть аддитивных операций
-    var expr = multiplication()
+    val expr = multiplication()
     while (accept(TokenType.MINUS, TokenType.PLUS)) {
+      // Семантическое условие "Выражение типа void не может быть операндом бинарной операции"
+      assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "addition operand shouldn't be VOID")
       // Правая часть аддитивных операций
-      multiplication()
-      expr = None
+      // Семантика: расширение типа значения
+      expr.foreach(l => multiplication().foreach(r => SemanticAnalyzer.wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
     }
     expr
   }
@@ -307,13 +365,15 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Умножение-деление"__.
    */
-  private def multiplication(): Option[(SymbolNode.Type.Value, Any)] = {
+  private def multiplication(): Option[Expr] = {
     // Левая часть мультипликативных операций
-    var expr = unary()
+    val expr = unary()
     while (accept(TokenType.SLASH, TokenType.STAR)) {
+      // Семантическое условие "Выражение типа void не может быть операндом бинарной операции"
+      assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "multiplication operand shouldn't be VOID")
       // Правая часть мультипликативных операций
-      unary()
-      expr = None
+      // Семантика: расширение типа значения
+      expr.foreach(l => unary().foreach(r => SemanticAnalyzer.wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
     }
     expr
   }
@@ -321,24 +381,33 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   /**
    * Разбор синтаксической конструкции __"Унарная операция"__.
    */
-  private def unary(): Option[(SymbolNode.Type.Value, Any)] = {
+  private def unary(): Option[Expr] = {
     // Префиксы унарных операций для элементарной операции
-    val hasPref = accept(TokenType.PLUS, TokenType.MINUS, TokenType.PLUS_PLUS, TokenType.MINUS_MINUS, TokenType.BANG)
+    val hasPref = acceptOption(TokenType.PLUS, TokenType.MINUS, TokenType.PLUS_PLUS, TokenType.MINUS_MINUS, TokenType.BANG)
     // Элементарная операция
     val prim = primary()
     // Возможно, суффиксы унарных операциий
     val hasSuf = accept(TokenType.PLUS_PLUS, TokenType.MINUS_MINUS)
 
-    if (!hasPref && !hasSuf) prim else None
+    if (hasPref.isDefined || hasSuf) {
+      // Семантическое условие "Выражение типа void не может быть операндом унарной операции"
+      assertSemantic(prim.exists(_.tpe != SymbolNode.Type.VOID), "unary operand shouldn't be VOID")
+      // Семантическое условие "Логическое отрицание не работает с double"
+      assertSemantic(
+        hasPref.exists(_.tpe != TokenType.BANG) || prim.exists(_.tpe != SymbolNode.Type.DOUBLE),
+        "bang operator operand shouldn't be DOUBLE"
+      )
+    }
+    prim
   }
 
   /**
    * Разбор синтаксической конструкции __"Элементарное выражение"__.
    */
-  private def primary(): Option[(SymbolNode.Type.Value, Any)] = {
+  private def primary(): Option[Expr] = {
     // Константа
     val number = acceptOption(TokenType.NUMBER_INT, TokenType.NUMBER_EXP)
-    if (number.isDefined) return number.map(x => (x.tpe, x.lexeme))
+    if (number.isDefined) return number.map(x => Expr.Value(x.tpe, x.lexeme))
     if (accept(TokenType.LEFT_PAREN)) {
       // Выражение в скобках
       val expr = expression()
@@ -346,16 +415,27 @@ class Parser(private val tokens: BufferedIterator[Token]) {
       return expr
     }
     // Идентификатор (объекта, переменной)
-    consume("name expected", TokenType.IDENTIFIER)
+    var access = Seq(consume("name expected", TokenType.IDENTIFIER))
     // Доступ к полю объекта
     while (accept(TokenType.DOT)) {
-      consume("access member name expected", TokenType.IDENTIFIER)
+      access :+= consume("access member name expected", TokenType.IDENTIFIER)
     }
+    val accessors :+ identifier = access.map(_.lexeme)
+    // Семантическое условие "Доступ к ресурсу должен быть описан явно"
+    assertSemantic(accessors.isEmpty || accessors.head == "Main", "access chain must be written explicitly")
+    val lookupStart = if (accessors.nonEmpty) symbolTable.root else symbolTable.current
     // Вызов метода объекта
     if (accept(TokenType.LEFT_PAREN)) {
       consume("')' expected in method call", TokenType.RIGHT_PAREN)
+      // Семантика: поиск метода
+      return SemanticAnalyzer.findReference(lookupStart, accessors, identifier) {
+        case SymbolNode.Method(`identifier`, _) => true
+      }
     }
-    None
+    // Семантика: поиск переменной или поля
+    SemanticAnalyzer.findReference(lookupStart, accessors, identifier) {
+      case SymbolNode.Variable(`identifier`, _, _) | SymbolNode.Field(`identifier`, _, _) => true
+    }
   }
 
   /**

@@ -114,6 +114,7 @@ object SymbolNode {
 
   object Synthetic {
     def apply(): Synthetic = new Synthetic()
+    def unapply(x: Synthetic): Boolean = true
   }
 
   /**
