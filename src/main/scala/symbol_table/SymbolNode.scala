@@ -120,20 +120,20 @@ object SymbolNode {
    * Печатает дерево с корнем `node` в формате GraphViz.
    */
   def dotPrint(node: SymbolNode): Unit = {
-    println("digraph G {")
+    System.out.println("digraph G {")
     def _print(node: SymbolNode, id: Int = 0): Unit = {
       val q = '"'
       val root = s"\tn$id [${if (node.isInstanceOf[Synthetic]) "style=filled, fillcolor=black" else s"label=$q$node$q"}];"
-      println(root)
+      System.out.println(root)
       val leftId = 2*id+1
       val rightId = 2*id+2
-      println(s"\tn$id -> n$leftId;")
-      println(s"\tn$id -> n$rightId;")
+      System.out.println(s"\tn$id -> n$leftId;")
+      System.out.println(s"\tn$id -> n$rightId;")
 
-      if (node.leftChild != null) _print(node.leftChild, leftId) else println(s"\tn$leftId [label=${q}left$q, style=filled, fillcolor=gray];")
-      if (node.rightChild != null) _print(node.rightChild, rightId) else println(s"\tn$rightId [label=${q}right$q, style=filled, fillcolor=gray];")
+      if (node.leftChild != null) _print(node.leftChild, leftId) else System.out.println(s"\tn$leftId [label=${q}left$q, style=filled, fillcolor=gray];")
+      if (node.rightChild != null) _print(node.rightChild, rightId) else System.out.println(s"\tn$rightId [label=${q}right$q, style=filled, fillcolor=gray];")
     }
     _print(node)
-    println("}")
+    System.out.println("}")
   }
 }

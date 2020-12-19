@@ -24,7 +24,7 @@ Usage: app [--source filename]
         case v :: value :: tail if v == "--source" || v == "-s" =>
           nextOption(map ++ Map(Symbol("source") -> value), tail)
         case option :: _ =>
-          println(s"Unknown option $option")
+          System.err.println(s"Unknown option $option")
           map
       }
     }

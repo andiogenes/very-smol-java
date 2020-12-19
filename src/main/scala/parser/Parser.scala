@@ -22,11 +22,10 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   def parse(): Option[SymbolTable] = {
     try {
       program()
-      Some(symbolTable).filter(_.root != null)
     } catch {
       case _: ParseError =>
-        None
     }
+    Some(symbolTable).filter(_.root != null)
   }
 
   /**
