@@ -1,0 +1,1 @@
+Parsing error: 'void', 'int', 'short', 'long' or 'double' keyword expected, got: 'voidm' at line 2, pos 5

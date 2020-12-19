@@ -1,0 +1,7 @@
+digraph G {
+	n0 [label="Class(Main)"];
+	n0 -> n1;
+	n0 -> n2;
+	n1 [label="left", style=filled, fillcolor=gray];
+	n2 [label="right", style=filled, fillcolor=gray];
+}
