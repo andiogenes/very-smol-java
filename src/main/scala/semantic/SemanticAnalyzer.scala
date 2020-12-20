@@ -22,12 +22,12 @@ object SemanticAnalyzer {
   /**
    * Войти в очередной switch.
    */
-  def increaseSwitchNesting(): Unit = _switchNesting += 1
+  def enterSwitch(): Unit = _switchNesting += 1
 
   /**
    * Выйти из очередного switch.
    */
-  def decreaseSwitchNesting(): Unit = _switchNesting -= 1
+  def leaveSwitch(): Unit = _switchNesting -= 1
 
   private var methodHasReturn = false
 
@@ -236,15 +236,22 @@ object SemanticAnalyzer {
    */
   def assertSemantic(assertion: Boolean, message: String): Unit = {
     if (!assertion) {
-      printError(None, message)
+      printError(message)
       throw new SemanticError()
     }
   }
 
+  private var token: Option[Token] = None
+
+  /**
+   * Устанавливает текущую позицию семантического анализа в исходном коде.
+   */
+  def setCursor(t: Token): Unit = token = Some(t)
+
   /**
    * Печатает сообщение об ошибке.
    */
-  def printError(token: Option[Token], message: String): Unit = {
-    System.err.println(s"Semantic error: $message, ${token.map(t => s"'line ${t.line}, pos ${t.pos+1}").getOrElse("nothing")}")
+  def printError(message: String): Unit = {
+    System.err.println(s"Semantic error: $message, ${token.map(t => s"line ${t.line}, pos ${t.pos+1}").getOrElse("")}")
   }
 }

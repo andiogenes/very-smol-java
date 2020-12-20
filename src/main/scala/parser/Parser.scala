@@ -48,7 +48,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     // Тело класса: начало
     consume("'{' expected", TokenType.LEFT_BRACE)
     // Соответствующий узел таблицы
-    val node = symbolTable.setCurrent(SymbolNode.Class(name), _root)
+    val node = symbolTable.setCurrent(SymbolNode.Class(name), _root, isSameScope = true)
     // Семантическое условие "В области видимости нет классов с таким же именем".
     SemanticAnalyzer.checkNoSameDeclarationsInScope(node)
     if (isMainClass) {
@@ -94,7 +94,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     val name = consume("member name expected", TokenType.IDENTIFIER).lexeme
     // Метод
     if (accept(TokenType.LEFT_PAREN)) {
-      symbolTable.setCurrent(SymbolNode.Method(name, tpe), _root)
+      symbolTable.setCurrent(SymbolNode.Method(name, tpe), _root, isSameScope = true)
       // Семантическое условие "В области видимости нет методов с таким же именем."
       SemanticAnalyzer.checkNoSameDeclarationsInScope(symbolTable.current)
       // Семантическое условие "Наличие или отсутствие return в методе."
@@ -105,7 +105,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     }
     // Объявление поля
     val (_, value) = dataDeclaration(tpe)
-    symbolTable.setCurrent(SymbolNode.Field(name, tpe, value), _root)
+    symbolTable.setCurrent(SymbolNode.Field(name, tpe, value), _root, isSameScope = true)
     // Семантическое условие "В области видимости нет полей с таким же именем."
     SemanticAnalyzer.checkNoSameDeclarationsInScope(symbolTable.current)
   }
@@ -212,17 +212,21 @@ class Parser(private val tokens: BufferedIterator[Token]) {
    */
   private def switchStatement(_root: SymbolNode = null): Unit = {
     // Семантика: вход в switch
-    SemanticAnalyzer.increaseSwitchNesting()
+    SemanticAnalyzer.enterSwitch()
     consume("'(' expected", TokenType.LEFT_PAREN)
     // Условие оператора switch
-    expression()
+    // Семантическое условие "Ограничение на тип выражения оператора switch"
+    assertSemantic(
+      expression().exists(_.tpe != SymbolNode.Type.VOID),
+      "switch expression should be a value of type INT, LONG, SHORT or DOUBLE, got VOID"
+    )
     consume("')' expected", TokenType.RIGHT_PAREN)
     consume("'{' expected", TokenType.LEFT_BRACE)
     // Тело оператора switch
-    switchBody(_root = _root)
+    switchBody( _root = _root)
     consume("'}' expected", TokenType.RIGHT_BRACE)
     // Семантика: выход из switch
-    SemanticAnalyzer.decreaseSwitchNesting()
+    SemanticAnalyzer.leaveSwitch()
   }
 
   /**
@@ -245,7 +249,12 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     caseType.tpe match {
       case TokenType.CASE =>
         // Сопоставляемое выражение
-        expression()
+        // Семантическое условие: "выражения в условиях веток switch должны быть согласованы по типам"
+        // Т.к. сопоставление условий это по сути, cmp, тут работает widening cast, как в операторах сравнения
+        assertSemantic(
+          expression().exists(_.tpe != SymbolNode.Type.VOID),
+          "case expression should be a value of type INT, LONG, SHORT or DOUBLE, got VOID"
+        )
         consume("':' after switch case value expected", TokenType.COLON)
       case TokenType.DEFAULT =>
         consume("':' after 'default' case label expected", TokenType.COLON)
@@ -341,8 +350,8 @@ class Parser(private val tokens: BufferedIterator[Token]) {
       // Правая часть сравнения
       // Семантика: расширение типа значения
       expr.foreach(l => addition().foreach(r => SemanticAnalyzer.wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
+      expr.foreach(_.tpe = TokenType.INT)
     }
-    expr.foreach(_.tpe = TokenType.INT)
     expr
   }
 
@@ -447,6 +456,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   private def accept(types: TokenType.Value*): Boolean = {
     tokens.headOption match {
       case Some(token) if types.contains(token.tpe) =>
+        SemanticAnalyzer.setCursor(token)
         tokens.next()
         true
       case _ => false
@@ -462,6 +472,7 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   private def acceptOption(types: TokenType.Value*): Option[Token] = {
     tokens.headOption match {
       case Some(token) if types.contains(token.tpe) =>
+        SemanticAnalyzer.setCursor(token)
         tokens.next()
         Some(token)
       case _ => None
@@ -482,7 +493,9 @@ class Parser(private val tokens: BufferedIterator[Token]) {
   @inline
   private def consume(message: String, types: TokenType.Value*): Token = {
     tokens.headOption match {
-      case Some(token) if types.contains(token.tpe) => tokens.next()
+      case Some(token) if types.contains(token.tpe) =>
+        SemanticAnalyzer.setCursor(token)
+        tokens.next()
       case v =>
         v.foreach(Scanner.printError)
         Parser.printError(v, message)

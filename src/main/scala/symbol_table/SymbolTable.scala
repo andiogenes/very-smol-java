@@ -12,11 +12,15 @@ class SymbolTable(var root: SymbolNode = null, private var cur: SymbolNode = nul
   /**
    * Устанавливает текущий узел таблицы.
    */
-  def setCurrent[T <: SymbolNode](x: T, root: SymbolNode = null): T = {
+  def setCurrent[T <: SymbolNode](x: T, root: SymbolNode = null, isSameScope: Boolean = false): T = {
     val prev = cur
     cur = x
     if (root != null) {
+      if (prev == root && !isSameScope) {
+        prev.rightChild = cur
+      } else {
         prev.leftChild = cur
+      }
     }
     x
   }
