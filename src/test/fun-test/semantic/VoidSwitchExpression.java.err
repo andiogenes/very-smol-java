@@ -1,0 +1,1 @@
+Semantic error: switch expression should be a value of type INT, LONG, SHORT or DOUBLE, got VOID, line 9, pos 21

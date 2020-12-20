@@ -1,0 +1,1 @@
+Semantic error: ++ and -- operators work only with named values (such as variables and fields), line 3, pos 10

@@ -1,0 +1,1 @@
+Semantic error: case expression should be a value of type INT, LONG, SHORT or DOUBLE, got VOID, line 6, pos 22
