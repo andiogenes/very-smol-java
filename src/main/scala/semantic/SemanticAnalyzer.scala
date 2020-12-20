@@ -125,7 +125,7 @@ object SemanticAnalyzer {
     def lookup(current: SymbolNode): (Boolean, Option[SymbolNode.Type.Value]) = {
       current match {
         case null | _: SymbolNode.Class | _: SymbolNode.Field => (false, None)
-        case SymbolNode.Method(_, tpe) => (cast(from = returnType, to = tpe).isDefined, Some(tpe))
+        case SymbolNode.Method(_, tpe) => (cast(from = returnType, to = tpe, valueOption.exists(_.isLiteral)).isDefined, Some(tpe))
         case _ => lookup(current.parent)
       }
     }

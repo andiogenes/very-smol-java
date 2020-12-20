@@ -3,9 +3,9 @@ package cmd
 import java.nio.charset.Charset
 import java.nio.file.{Files, Paths}
 
-import symbol_table.SymbolNode
 import parser.Parser
 import scanner.Scanner
+import semantic.SemanticAnalyzer.SemanticError
 
 object App extends App {
   val options = Cli.parse(args)
@@ -15,5 +15,9 @@ object App extends App {
   val scanner = new Scanner(source)
   val parser = new Parser(scanner.buffered)
 
-  parser.parse()
+  try {
+    parser.parse()
+  } catch {
+    case _: SemanticError =>
+  }
 }

@@ -309,8 +309,9 @@ class Parser(private val tokens: BufferedIterator[Token]) {
         "logical operations works with operands of type INT, SHORT, LONG"
       )
       // Правая часть оператора ИЛИ
-      // Семантика: расширение типа значения
-      expr.foreach(l => and().foreach(r => SemanticAnalyzer.wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
+      and()
+      // Семантика: приведение к типу возвращаемого значения
+      expr.foreach(_.tpe = TokenType.SHORT)
     }
     expr
   }
@@ -328,8 +329,9 @@ class Parser(private val tokens: BufferedIterator[Token]) {
         "logical operations works with operands of type INT, SHORT, LONG"
       )
       // Правая часть оператора И
-      // Семантика: расширение типа значения
-      expr.foreach(l => comparison().foreach(r => SemanticAnalyzer.wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
+      comparison()
+      // Семантика: приведение к типу возвращаемого значения
+      expr.foreach(_.tpe = TokenType.SHORT)
     }
     expr
   }
@@ -348,9 +350,9 @@ class Parser(private val tokens: BufferedIterator[Token]) {
       // Семантическое условие "Выражение типа void не может быть операндом бинарной операции"
       assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "comparison operand shouldn't be VOID")
       // Правая часть сравнения
-      // Семантика: расширение типа значения
-      expr.foreach(l => addition().foreach(r => SemanticAnalyzer.wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
-      expr.foreach(_.tpe = TokenType.INT)
+      addition()
+      // Семантика: приведение к типу возвращаемого значения
+      expr.foreach(_.tpe = TokenType.SHORT)
     }
     expr
   }
@@ -399,6 +401,13 @@ class Parser(private val tokens: BufferedIterator[Token]) {
     val hasSuf = accept(TokenType.PLUS_PLUS, TokenType.MINUS_MINUS)
 
     if (hasPref.isDefined || hasSuf) {
+      // Семантическое условие: "Инкремент и декремент работают только с именованными значениями"
+      assertSemantic(
+        hasPref.map(_.tpe).exists(t => t != TokenType.MINUS_MINUS && t != TokenType.PLUS_PLUS)
+        || !hasSuf
+        || prim.exists(!_.isInstanceOf[Expr.Value]),
+        "++ and -- operators work only with named values (such as variables and fields)"
+      )
       // Семантическое условие "Выражение типа void не может быть операндом унарной операции"
       assertSemantic(prim.exists(_.tpe != SymbolNode.Type.VOID), "unary operand shouldn't be VOID")
       // Семантическое условие "Логическое отрицание не работает с double"

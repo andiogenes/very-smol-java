@@ -7,6 +7,7 @@ import symbol_table.SymbolNode
  */
 sealed trait Expr {
   var tpe: SymbolNode.Type.Value
+  def isLiteral: Boolean
 }
 
 object Expr {
@@ -14,10 +15,14 @@ object Expr {
   /**
    * Неименованное значение.
    */
-  case class Value(override var tpe: SymbolNode.Type.Value, value: Any) extends Expr
+  case class Value(override var tpe: SymbolNode.Type.Value, value: Any) extends Expr {
+    override def isLiteral: Boolean = value != SymbolNode.Undefined
+  }
 
   /**
    * Именованное значение.
    */
-  case class Reference(name: String, override var tpe: SymbolNode.Type.Value) extends Expr
+  case class Reference(name: String, override var tpe: SymbolNode.Type.Value) extends Expr {
+    override def isLiteral: Boolean = false
+  }
 }
