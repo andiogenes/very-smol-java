@@ -9,7 +9,7 @@ import scala.annotation.tailrec
 /**
  * Процедуры семантического анализа.
  */
-object SemanticAnalyzer {
+trait SemanticAnalyzer {
   class SemanticError extends RuntimeException
 
   private var _switchNesting = 0
