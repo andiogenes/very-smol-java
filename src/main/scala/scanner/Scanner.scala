@@ -35,6 +35,7 @@ class Scanner(private val source: String) extends Iterator[Token] {
     "long" -> TokenType.LONG,
     "double" -> TokenType.DOUBLE,
     "return" -> TokenType.RETURN,
+    "println" -> TokenType.PRINTLN,
   )
 
   /**

@@ -7,8 +7,9 @@ import symbol_table.SymbolNode
 
 trait TreePrinter { _: Parser =>
   private var step: Int = 1
+  private val isEnabled: Boolean = false
 
-  def printTable(title: String): Unit = {
+  def printTable(title: String): Unit = if (isEnabled) {
     val prevOut = System.out
 
     val out = new PrintStream(new FileOutputStream(s"step_$step.gv"))

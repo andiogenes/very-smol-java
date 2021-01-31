@@ -188,10 +188,26 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     if (accept(TokenType.RETURN)) { returnStatement(); return false }
     // Оператор switch
     if (accept(TokenType.SWITCH)) { switchStatement(_root = _root); return true }
+    // Оператор println
+    if (accept(TokenType.PRINTLN)) { printlnStatement(); return false }
     // Выражение
     expression()
     consume("';' after declaration expected", TokenType.SEMICOLON)
     false
+  }
+
+  /**
+   * Разбор синтаксической конструкции __"Печать значения"__.
+   */
+  private def printlnStatement(): Unit = {
+    consume("'(' expected", TokenType.LEFT_PAREN)
+    if (accept(TokenType.RIGHT_PAREN)) {
+      println()
+    } else {
+      expression().foreach(println)
+      consume("')' expected", TokenType.RIGHT_PAREN)
+    }
+    consume("';' after println expected", TokenType.SEMICOLON)
   }
 
   /**
