@@ -337,6 +337,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def or(): Option[Expr] = {
     // Левая часть оператора ИЛИ
     val expr = and()
+    var acc = expr.map(_.value)
     while (accept(TokenType.OR)) {
       // Семантическое условие "Логические операторы работают только с целочисленными типами"
       assertSemantic(
@@ -344,11 +345,13 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
         "logical operations works with operands of type INT, SHORT, LONG"
       )
       // Правая часть оператора ИЛИ
-      and()
+      expr.foreach(_ => and().foreach { r =>
+        acc = acc.map(evalBinary(TokenType.OR, _, r.value))
+      })
       // Семантика: приведение к типу возвращаемого значения
       expr.foreach(_.tpe = TokenType.SHORT)
     }
-    expr
+    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
   }
 
   /**
@@ -357,6 +360,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def and(): Option[Expr] = {
     // Левая часть оператора И
     val expr = comparison()
+    var acc = expr.map(_.value)
     while (accept(TokenType.AND)) {
       // Семантическое условие "Логические операторы работают только с целочисленными типами"
       assertSemantic(
@@ -364,11 +368,13 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
         "logical operations works with operands of type INT, SHORT, LONG"
       )
       // Правая часть оператора И
-      comparison()
+      expr.foreach(_ => comparison().foreach { r =>
+        acc = acc.map(evalBinary(TokenType.AND, _, r.value))
+      })
       // Семантика: приведение к типу возвращаемого значения
       expr.foreach(_.tpe = TokenType.SHORT)
     }
-    expr
+    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
   }
 
   /**
@@ -377,19 +383,27 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def comparison(): Option[Expr] = {
     // Левая часть сравнения
     val expr = addition()
-    while (accept(
-      TokenType.LESS, TokenType.LESS_EQUAL,
-      TokenType.GREATER, TokenType.GREATER_EQUAL,
-      TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL
-    )) {
+    var acc = expr.map(_.value)
+    var opcode: Option[TokenType.Value] = None
+    while ({
+      opcode = acceptOption(
+        TokenType.LESS, TokenType.LESS_EQUAL,
+        TokenType.GREATER, TokenType.GREATER_EQUAL,
+        TokenType.EQUAL_EQUAL, TokenType.BANG_EQUAL
+      ).map(_.tpe)
+
+      opcode.isDefined
+    }) {
       // Семантическое условие "Выражение типа void не может быть операндом бинарной операции"
       assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "comparison operand shouldn't be VOID")
       // Правая часть сравнения
-      addition()
+      expr.foreach(_ => addition().foreach { r =>
+        acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
+      })
       // Семантика: приведение к типу возвращаемого значения
       expr.foreach(_.tpe = TokenType.SHORT)
     }
-    expr
+    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
   }
 
   /**
@@ -398,14 +412,19 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def addition(): Option[Expr] = {
     // Левая часть аддитивных операций
     val expr = multiplication()
-    while (accept(TokenType.MINUS, TokenType.PLUS)) {
+    var acc = expr.map(_.value)
+    var opcode: Option[TokenType.Value] = None
+    while ({ opcode = acceptOption(TokenType.MINUS, TokenType.PLUS).map(_.tpe); opcode.isDefined }) {
       // Семантическое условие "Выражение типа void не может быть операндом бинарной операции"
       assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "addition operand shouldn't be VOID")
       // Правая часть аддитивных операций
       // Семантика: расширение типа значения
-      expr.foreach(l => multiplication().foreach(r => wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
+      expr.foreach(l => multiplication().foreach { r =>
+        wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)
+        acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
+      })
     }
-    expr
+    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
   }
 
   /**
@@ -414,14 +433,19 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def multiplication(): Option[Expr] = {
     // Левая часть мультипликативных операций
     val expr = unary()
-    while (accept(TokenType.SLASH, TokenType.STAR)) {
+    var acc = expr.map(_.value)
+    var opcode: Option[TokenType.Value] = None
+    while ({ opcode = acceptOption(TokenType.SLASH, TokenType.STAR).map(_.tpe); opcode.isDefined }) {
       // Семантическое условие "Выражение типа void не может быть операндом бинарной операции"
       assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "multiplication operand shouldn't be VOID")
       // Правая часть мультипликативных операций
       // Семантика: расширение типа значения
-      expr.foreach(l => unary().foreach(r => wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)))
+      expr.foreach(l => unary().foreach { r =>
+        wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)
+        acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
+      })
     }
-    expr
+    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
   }
 
   /**
@@ -433,13 +457,13 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     // Элементарная операция
     val prim = primary()
     // Возможно, суффиксы унарных операциий
-    val hasSuf = accept(TokenType.PLUS_PLUS, TokenType.MINUS_MINUS)
+    val hasSuf = acceptOption(TokenType.PLUS_PLUS, TokenType.MINUS_MINUS)
 
-    if (hasPref.isDefined || hasSuf) {
+    if (hasPref.isDefined || hasSuf.isDefined) {
       // Семантическое условие: "Инкремент и декремент работают только с именованными значениями"
       assertSemantic(
         hasPref.map(_.tpe).exists(t => t != TokenType.MINUS_MINUS && t != TokenType.PLUS_PLUS)
-        || !hasSuf
+        || hasSuf.isEmpty
         || prim.exists(!_.isInstanceOf[Expr.Value]),
         "++ and -- operators work only with named values (such as variables and fields)"
       )
@@ -451,7 +475,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
         "bang operator operand shouldn't be DOUBLE"
       )
     }
-    prim
+    evalUnary(prim, hasPref.map(_.tpe), hasSuf.map(_.tpe))
   }
 
   /**
