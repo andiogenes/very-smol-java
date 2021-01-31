@@ -120,10 +120,10 @@ object SymbolNode {
   /**
    * Печатает дерево с корнем `node` в формате GraphViz.
    */
-  def dotPrint(node: SymbolNode): Unit = {
+  def dotPrint(node: SymbolNode, title: String = ""): Unit = {
     System.out.println("digraph G {")
+    val q = '"'
     def _print(node: SymbolNode, id: Int = 0): Unit = {
-      val q = '"'
       val root = s"\tn$id [${if (node.isInstanceOf[Synthetic]) "style=filled, fillcolor=black" else s"label=$q$node$q"}];"
       System.out.println(root)
       val leftId = 2*id+1
@@ -135,6 +135,10 @@ object SymbolNode {
       if (node.rightChild != null) _print(node.rightChild, rightId) else System.out.println(s"\tn$rightId [label=${q}right$q, style=filled, fillcolor=gray];")
     }
     _print(node)
+    if (!title.isEmpty) {
+      System.out.println(s"labelloc=${q}t$q;")
+      System.out.println(s"label=$q$title$q;")
+    }
     System.out.println("}")
   }
 }

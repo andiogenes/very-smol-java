@@ -1,9 +1,9 @@
 package cmd
 
-import interpreter.ParserInterpreter
-
 import java.nio.charset.Charset
 import java.nio.file.{Files, Paths}
+
+import interpreter.ParserInterpreter
 
 object App extends App {
   val options = Cli.parse(args)

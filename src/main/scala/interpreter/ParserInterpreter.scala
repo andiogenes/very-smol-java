@@ -2,6 +2,7 @@ package interpreter
 
 import evaluator.Evaluator
 import parser.Parser
+import printer.TreePrinter
 import scanner.Scanner
 import semantic.{Expr, SemanticAnalyzer}
 import symbol_table.{SymbolNode, SymbolTable}
@@ -12,7 +13,7 @@ import tokens.{Token, TokenType}
  *
  * @param source Исходный код модуля
  */
-class ParserInterpreter(private val source: String) extends Parser with Evaluator with SemanticAnalyzer {
+class ParserInterpreter(private val source: String) extends Parser with Evaluator with SemanticAnalyzer with TreePrinter {
   private val tokens = new Scanner(source).buffered
 
   def run(): Unit = {
@@ -110,6 +111,8 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     symbolTable.setCurrent(SymbolNode.Field(name, tpe, value), _root, isSameScope = true)
     // Семантическое условие "В области видимости нет полей с таким же именем."
     checkNoSameDeclarationsInScope(symbolTable.current)
+    // Печать дерева при выделении памяти под поле
+    printTable(s"Create field $name")
   }
 
   /**
@@ -152,8 +155,14 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       statement(_root = root)
     }
-    symbolTable.setCurrent(if (root.isEmpty) prev else root)
+    // Печать дерева при выделении памяти под блок
+    printTable(s"Create block $root")
+    // Освобождение памяти из-под блока
+    symbolTable.setCurrent(prev)
+    if (isMethodBlock) prev.rightChild = null
     consume("'}' after block expected", TokenType.RIGHT_BRACE)
+    // Печать дерева при освобождении памяти из-под блока
+    printTable(s"Remove block $root")
     !root.isEmpty
   }
 
@@ -268,7 +277,12 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     while (!tokens.headOption.map(_.tpe).exists(t => t == TokenType.CASE || t == TokenType.DEFAULT || t == TokenType.RIGHT_BRACE)) {
       statement(_root = root)
     }
-    symbolTable.setCurrent(if (root.isEmpty) prev else root)
+    // Печать дерева при выделении памяти под блок
+    printTable(s"Create block $root")
+    // Освобождение памяти из-под блока
+    symbolTable.setCurrent(prev)
+    // Печать дерева при освобождении памяти из-под блока
+    printTable(s"Remove block $root")
     !root.isEmpty
   }
 
