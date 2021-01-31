@@ -117,7 +117,7 @@ trait SemanticAnalyzer {
   def checkProperReturn(start: SymbolNode, valueOption: Option[Expr]): Unit = {
     val returnType: SymbolNode.Type.Value = valueOption match {
       case Some(Expr.Value(tpe, _)) => tpe
-      case Some(Expr.Reference(_, tpe)) => tpe
+      case Some(Expr.Reference(_, tpe, _)) => tpe
       case None => SymbolNode.Type.VOID
     }
 
@@ -181,8 +181,8 @@ trait SemanticAnalyzer {
     }
 
     node match {
-      case Some(SymbolNode.Variable(_, tpe, _)) => Some(Expr.Reference(fullName, tpe))
-      case Some(SymbolNode.Field(_, tpe, _)) => Some(Expr.Reference(fullName, tpe))
+      case Some(v @ SymbolNode.Variable(_, tpe, _)) => Some(Expr.Reference(fullName, tpe, v))
+      case Some(f @ SymbolNode.Field(_, tpe, _)) => Some(Expr.Reference(fullName, tpe, f))
       case Some(SymbolNode.Method(_, tpe)) => Some(Expr.Value(tpe, SymbolNode.Undefined))
       case _ => assertSemantic(assertion = false, s"$fullName not found"); None
     }

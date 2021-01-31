@@ -134,7 +134,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     val initValue = if (accept(TokenType.EQUAL)) {
       expression().map {
         case Expr.Value(tpe, value) => (tpe, value)
-        case Expr.Reference(_, tpe) => (tpe, SymbolNode.Undefined)
+        case Expr.Reference(_, tpe, ref) => (tpe, ref.value)
       }.getOrElse(tpe, SymbolNode.Undefined)
     } else {
       (tpe, SymbolNode.Type.default(tpe))
@@ -320,10 +320,13 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       assertSemantic(expr.exists(_.isInstanceOf[Expr.Reference]), "cannot assign to value")
       // Правая часть присваивания
       // Семантическое условие "Корректное приведение типов при присваивании."
-      expr.foreach(l => or().foreach(r => checkTypeConsistency(from = r.tpe, to = l.tpe, literal = r match {
-        case Expr.Value(_, value) => value != SymbolNode.Undefined
-        case _ => false
-      })))
+      expr.foreach(l => expression().foreach { r =>
+        checkTypeConsistency(from = r.tpe, to = l.tpe, literal = r match {
+          case Expr.Value(_, value) => value != SymbolNode.Undefined
+          case _ => false
+        })
+        l.asInstanceOf[Expr.Reference].ref.value = r.value
+      })
     }
     expr
   }
@@ -457,7 +460,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def primary(): Option[Expr] = {
     // Константа
     val number = acceptOption(TokenType.NUMBER_INT, TokenType.NUMBER_EXP)
-    if (number.isDefined) return number.map(x => Expr.Value(x.tpe, x.lexeme))
+    if (number.isDefined) return number.map(x => Expr.Value(x.tpe, SymbolNode.Type.parseLiteral(x.lexeme, x.tpe)))
     if (accept(TokenType.LEFT_PAREN)) {
       // Выражение в скобках
       val expr = expression()

@@ -53,6 +53,13 @@ sealed trait SymbolNode {
   def isEmpty: Boolean = _leftChild == null && _rightChild == null
 }
 
+/**
+ * Узел таблицы символов, который хранит некоторое значение.
+ */
+sealed trait ValueContainer { _: SymbolNode =>
+  var value: Any
+}
+
 object SymbolNode {
   /**
    * Типы данных.
@@ -72,9 +79,18 @@ object SymbolNode {
     /**
      * Возвращает образ стандартного значения для типа данных.
      */
-    def default(x: Value): String = x match {
-      case INT | SHORT | LONG => "0"
-      case DOUBLE => "0.E0"
+    def default(x: Value): Any = x match {
+      case INT | SHORT | LONG => 0
+      case DOUBLE => 0E0
+      case _ => throw new IllegalArgumentException("value conversion error")
+    }
+
+    /**
+     * Преобразует образ значения в значение.
+     */
+    def parseLiteral(value: String, x: Value): Any = x match {
+      case INT | SHORT | LONG => value.toInt
+      case DOUBLE => value.toDouble
       case _ => throw new IllegalArgumentException("value conversion error")
     }
   }
@@ -95,7 +111,7 @@ object SymbolNode {
   /**
    * Тип объекта "Поле".
    */
-  case class Field(name: String, tpe: Type.Value, value: Any) extends SymbolNode
+  case class Field(name: String, tpe: Type.Value, override var value: Any) extends SymbolNode with ValueContainer
 
   /**
    * Тип объекта "Метод".
@@ -105,7 +121,7 @@ object SymbolNode {
   /**
    * Тип объекта "Простая переменная".
    */
-  case class Variable(name: String, tpe: Type.Value, value: Any) extends SymbolNode
+  case class Variable(name: String, tpe: Type.Value, override var value: Any) extends SymbolNode with ValueContainer
 
   /**
    * Искусственный узел дерева.
@@ -135,7 +151,7 @@ object SymbolNode {
       if (node.rightChild != null) _print(node.rightChild, rightId) else System.out.println(s"\tn$rightId [label=${q}right$q, style=filled, fillcolor=gray];")
     }
     _print(node)
-    if (!title.isEmpty) {
+    if (title.nonEmpty) {
       System.out.println(s"labelloc=${q}t$q;")
       System.out.println(s"label=$q$title$q;")
     }
