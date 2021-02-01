@@ -338,6 +338,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     // Левая часть оператора ИЛИ
     val expr = and()
     var acc = expr.map(_.value)
+    var isEvaluated = false
     while (accept(TokenType.OR)) {
       // Семантическое условие "Логические операторы работают только с целочисленными типами"
       assertSemantic(
@@ -347,11 +348,12 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       // Правая часть оператора ИЛИ
       expr.foreach(_ => and().foreach { r =>
         acc = acc.map(evalBinary(TokenType.OR, _, r.value))
+        isEvaluated = true
       })
       // Семантика: приведение к типу возвращаемого значения
       expr.foreach(_.tpe = TokenType.SHORT)
     }
-    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
+    if (isEvaluated) expr.flatMap(v => acc.map(Expr.Value(v.tpe, _))) else expr
   }
 
   /**
@@ -361,6 +363,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     // Левая часть оператора И
     val expr = comparison()
     var acc = expr.map(_.value)
+    var isEvaluated = false
     while (accept(TokenType.AND)) {
       // Семантическое условие "Логические операторы работают только с целочисленными типами"
       assertSemantic(
@@ -370,11 +373,12 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       // Правая часть оператора И
       expr.foreach(_ => comparison().foreach { r =>
         acc = acc.map(evalBinary(TokenType.AND, _, r.value))
+        isEvaluated = true
       })
       // Семантика: приведение к типу возвращаемого значения
       expr.foreach(_.tpe = TokenType.SHORT)
     }
-    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
+    if (isEvaluated) expr.flatMap(v => acc.map(Expr.Value(v.tpe, _))) else expr
   }
 
   /**
@@ -385,6 +389,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     val expr = addition()
     var acc = expr.map(_.value)
     var opcode: Option[TokenType.Value] = None
+    var isEvaluated = false
     while ({
       opcode = acceptOption(
         TokenType.LESS, TokenType.LESS_EQUAL,
@@ -399,11 +404,12 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       // Правая часть сравнения
       expr.foreach(_ => addition().foreach { r =>
         acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
+        isEvaluated = true
       })
       // Семантика: приведение к типу возвращаемого значения
       expr.foreach(_.tpe = TokenType.SHORT)
     }
-    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
+    if (isEvaluated) expr.flatMap(v => acc.map(Expr.Value(v.tpe, _))) else expr
   }
 
   /**
@@ -414,6 +420,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     val expr = multiplication()
     var acc = expr.map(_.value)
     var opcode: Option[TokenType.Value] = None
+    var isEvaluated = false
     while ({ opcode = acceptOption(TokenType.MINUS, TokenType.PLUS).map(_.tpe); opcode.isDefined }) {
       // Семантическое условие "Выражение типа void не может быть операндом бинарной операции"
       assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "addition operand shouldn't be VOID")
@@ -422,9 +429,10 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       expr.foreach(l => multiplication().foreach { r =>
         wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)
         acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
+        isEvaluated = true
       })
     }
-    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
+    if (isEvaluated) expr.flatMap(v => acc.map(Expr.Value(v.tpe, _))) else expr
   }
 
   /**
@@ -435,6 +443,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     val expr = unary()
     var acc = expr.map(_.value)
     var opcode: Option[TokenType.Value] = None
+    var isEvaluated = false
     while ({ opcode = acceptOption(TokenType.SLASH, TokenType.STAR).map(_.tpe); opcode.isDefined }) {
       // Семантическое условие "Выражение типа void не может быть операндом бинарной операции"
       assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "multiplication operand shouldn't be VOID")
@@ -443,9 +452,10 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       expr.foreach(l => unary().foreach { r =>
         wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)
         acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
+        isEvaluated = true
       })
     }
-    expr.flatMap(v => acc.map(Expr.Value(v.tpe, _)))
+    if (isEvaluated) expr.flatMap(v => acc.map(Expr.Value(v.tpe, _))) else expr
   }
 
   /**

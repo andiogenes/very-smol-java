@@ -111,7 +111,7 @@ trait Evaluator {
   }
 
   private def dec(v: Any): Any = {
-    asInt(v).map(_ + 1).orElse(asDouble(v).map(_ - 1)).get
+    asInt(v).map(_ - 1).orElse(asDouble(v).map(_ - 1)).get
   }
 
   private def asInt(v: Any): Option[Int] = v match {
