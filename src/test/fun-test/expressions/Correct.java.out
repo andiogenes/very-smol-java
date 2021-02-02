@@ -1,83 +1,71 @@
-0
-1
-
-1
-0
-
-1
-1
-
-0
-0
-
-10
-1.0
-
--10
--1.0
-
-0
-0
-0
-1
-
--15
-0
-24
-5.0
-5.0
-
-2
-2.5
-0.0
--2
--2
-2
-
-3
--1
-2.0
-
--1
-1
-1.0
-1.0
-
-1
-1
-1
-0
-1
-0
-0
-
-0
-0
-0
-0
-1
-1
-1
-
-0
-1
-1
-1
-
-0
-0
-1
-0
-1
-
-1
-1
-1
-0
-1
-
-1
-1
--56
-56.333333333333336
-
+field : INT = 4 : INT
+foo : INT = 0 : INT
+post_incr : INT = 0 : INT
+post_incr : INT = 1 : INT
+post_decr : INT = 1 : INT
+post_decr : INT = 0 : INT
+foo : INT = 0 : INT
+pre_incr : INT = 1 : INT
+pre_incr : INT = 1 : INT
+pre_decr : INT = 0 : INT
+pre_decr : INT = 0 : INT
+plus1 : INT = 10 : INT
+plus2 : DOUBLE = 1.0 : DOUBLE
+minus1 : INT = -10 : INT
+minus2 : DOUBLE = -1.0 : DOUBLE
+neg1 : SHORT = 0 : INT
+neg2 : SHORT = 0 : INT
+neg3 : SHORT = 0 : INT
+neg4 : SHORT = 1 : INT
+mul1 : INT = -15 : INT
+mul2 : INT = 0 : INT
+mul3 : INT = 24 : INT
+mul4 : DOUBLE = 5.0 : DOUBLE
+mul5 : DOUBLE = 5.0 : DOUBLE
+div1 : INT = 2 : INT
+div2 : DOUBLE = 2.5 : DOUBLE
+div3 : DOUBLE = 0.0 : DOUBLE
+div4 : INT = -2 : INT
+div5 : INT = -2 : INT
+div6 : INT = 2 : INT
+add1 : INT = 3 : INT
+add2 : INT = -1 : INT
+add3 : DOUBLE = 2.0 : DOUBLE
+sub1 : INT = -1 : INT
+sub2 : INT = 1 : INT
+sub3 : DOUBLE = 1.0 : DOUBLE
+sub4 : DOUBLE = 1.0 : DOUBLE
+comparison1 : SHORT = 1 : SHORT
+comparison2 : SHORT = 1 : SHORT
+comparison3 : SHORT = 1 : SHORT
+comparison4 : SHORT = 0 : SHORT
+comparison5 : SHORT = 1 : SHORT
+comparison6 : SHORT = 0 : SHORT
+comparison7 : SHORT = 0 : SHORT
+comparison8 : SHORT = 0 : SHORT
+comparison9 : SHORT = 0 : SHORT
+comparison10 : SHORT = 0 : SHORT
+comparison11 : SHORT = 0 : SHORT
+comparison12 : SHORT = 1 : SHORT
+comparison13 : SHORT = 1 : SHORT
+comparison14 : SHORT = 1 : SHORT
+comparison15 : SHORT = 0 : SHORT
+comparison16 : SHORT = 1 : SHORT
+comparison17 : SHORT = 1 : SHORT
+comparison18 : SHORT = 1 : SHORT
+and1 : SHORT = 0 : SHORT
+and2 : SHORT = 0 : SHORT
+and3 : SHORT = 1 : SHORT
+and4 : SHORT = 0 : SHORT
+and5 : SHORT = 1 : SHORT
+or1 : SHORT = 1 : SHORT
+or2 : SHORT = 1 : SHORT
+or3 : SHORT = 1 : SHORT
+or4 : SHORT = 0 : SHORT
+or5 : SHORT = 1 : SHORT
+complex1 : SHORT = 1 : SHORT
+complex2 : SHORT = 1 : SHORT
+complex3 : INT = -56 : INT
+complex4 : DOUBLE = 56.333333333333336 : DOUBLE
+complex5 : DOUBLE = 4.333333333333336 : DOUBLE
+complex5 : DOUBLE = 0.0 : DOUBLE

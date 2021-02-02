@@ -107,7 +107,9 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       return
     }
     // Объявление поля
-    val (_, value) = dataDeclaration(tpe)
+    val (valueTpe, value) = dataDeclaration(tpe)
+    // Печать данных о присваивании
+    println(s"$name : $tpe = $value : $valueTpe")
     symbolTable.setCurrent(SymbolNode.Field(name, tpe, value), _root, isSameScope = true)
     // Семантическое условие "В области видимости нет полей с таким же именем."
     checkNoSameDeclarationsInScope(symbolTable.current)
@@ -216,7 +218,9 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def variableDeclaration(tpe: SymbolNode.Type.Value, _root: SymbolNode = null): Unit = {
     // Имя переменной
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
-    val (_, value) = dataDeclaration(tpe)
+    val (valueTpe, value) = dataDeclaration(tpe)
+    // Печать данных о присваивании
+    println(s"$name : $tpe = $value : $valueTpe")
     symbolTable.setCurrent(SymbolNode.Variable(name, tpe, value), _root)
     // Семантическое условие "В области видимости нет переменных с таким же именем."
     checkNoSameDeclarationsInScope(symbolTable.current)
@@ -325,7 +329,11 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
           case Expr.Value(_, value) => value != SymbolNode.Undefined
           case _ => false
         })
-        l.asInstanceOf[Expr.Reference].ref.value = r.value
+        val lRef = l.asInstanceOf[Expr.Reference]
+        // Присваивание значения по ссылке
+        lRef.ref.value = r.value
+        // Печать информации о присваивании
+        println(s"${lRef.name} : ${lRef.tpe} = ${r.value} : ${r.tpe}")
       })
     }
     expr
