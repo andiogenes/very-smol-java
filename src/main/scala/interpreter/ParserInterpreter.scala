@@ -1,6 +1,6 @@
 package interpreter
 
-import evaluator.Evaluator
+import evaluation.{EvaluationContext, Evaluator}
 import parser.Parser
 import printer.TreePrinter
 import scanner.Scanner
@@ -13,7 +13,7 @@ import tokens.{Token, TokenType}
  *
  * @param source Исходный код модуля
  */
-class ParserInterpreter(private val source: String) extends Parser with Evaluator with SemanticAnalyzer with TreePrinter {
+class ParserInterpreter(private val source: String) extends Parser with Evaluator with EvaluationContext with SemanticAnalyzer with TreePrinter {
   private val tokens = new Scanner(source).buffered
 
   def run(): Unit = {
@@ -109,7 +109,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     // Объявление поля
     val (valueTpe, value) = dataDeclaration(tpe)
     // Печать данных о присваивании
-    println(s"$name : $tpe = $value : $valueTpe")
+    if (isInterpreting) println(s"$name : $tpe = $value : $valueTpe")
     symbolTable.setCurrent(SymbolNode.Field(name, tpe, value), _root, isSameScope = true)
     // Семантическое условие "В области видимости нет полей с таким же именем."
     checkNoSameDeclarationsInScope(symbolTable.current)
@@ -184,6 +184,11 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       // Семантическое условие "break только внутри switch."
       assertSemantic(switchNesting > 0, "break outside of switch statement")
       consume("';' after break expected", TokenType.SEMICOLON)
+      // Сброс флага интерпретации
+      if (isInterpreting) {
+        isInterpreting = false
+        isBreakExecuted = true
+      }
       return false
     }
     // Оператор return
@@ -204,9 +209,9 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def printlnStatement(): Unit = {
     consume("'(' expected", TokenType.LEFT_PAREN)
     if (accept(TokenType.RIGHT_PAREN)) {
-      println()
+      if (isInterpreting) println()
     } else {
-      expression().foreach(println)
+      expression().foreach(x => if (isInterpreting) println(x))
       consume("')' expected", TokenType.RIGHT_PAREN)
     }
     consume("';' after println expected", TokenType.SEMICOLON)
@@ -220,7 +225,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
     val (valueTpe, value) = dataDeclaration(tpe)
     // Печать данных о присваивании
-    println(s"$name : $tpe = $value : $valueTpe")
+    if (isInterpreting) println(s"$name : $tpe = $value : $valueTpe")
     symbolTable.setCurrent(SymbolNode.Variable(name, tpe, value), _root)
     // Семантическое условие "В области видимости нет переменных с таким же именем."
     checkNoSameDeclarationsInScope(symbolTable.current)
@@ -244,11 +249,17 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def switchStatement(_root: SymbolNode = null): Unit = {
     // Семантика: вход в switch
     enterSwitch()
+    // Сохранение контекста
+    saveContext()
+    // Отключение интерпретации
+    isInterpreting = false
     consume("'(' expected", TokenType.LEFT_PAREN)
+    // Условие switch
+    switchCondition = expression()
     // Условие оператора switch
     // Семантическое условие "Ограничение на тип выражения оператора switch"
     assertSemantic(
-      expression().exists(_.tpe != SymbolNode.Type.VOID),
+      switchCondition.exists(_.tpe != SymbolNode.Type.VOID),
       "switch expression should be a value of type INT, LONG, SHORT or DOUBLE, got VOID"
     )
     consume("')' expected", TokenType.RIGHT_PAREN)
@@ -258,6 +269,8 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     consume("'}' expected", TokenType.RIGHT_BRACE)
     // Семантика: выход из switch
     leaveSwitch()
+    // Восстановление контекста
+    restoreContext()
   }
 
   /**
@@ -280,15 +293,22 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     caseType.tpe match {
       case TokenType.CASE =>
         // Сопоставляемое выражение
+        val condition = expression()
         // Семантическое условие: "выражения в условиях веток switch должны быть согласованы по типам"
         // Т.к. сопоставление условий это по сути, cmp, тут работает widening cast, как в операторах сравнения
         assertSemantic(
-          expression().exists(_.tpe != SymbolNode.Type.VOID),
+          condition.exists(_.tpe != SymbolNode.Type.VOID),
           "case expression should be a value of type INT, LONG, SHORT or DOUBLE, got VOID"
         )
         consume("':' after switch case value expected", TokenType.COLON)
+        // Включаем интерпретацию, если switch интерпретируется, "хорошая" ветвь и не был вызван break
+        if (peekContext().isInterpreting && switchCondition.exists(l => condition.exists(l.value == _.value)) && !isBreakExecuted) {
+          isInterpreting = true
+        }
       case TokenType.DEFAULT =>
         consume("':' after 'default' case label expected", TokenType.COLON)
+        // Включаем интерпретацию, если switch интерпретируется и не был вызван break
+        if (peekContext().isInterpreting && !isBreakExecuted) isInterpreting = true
       case _ =>
     }
     val prev = symbolTable.current
@@ -329,11 +349,13 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
           case Expr.Value(_, value) => value != SymbolNode.Undefined
           case _ => false
         })
-        val lRef = l.asInstanceOf[Expr.Reference]
-        // Присваивание значения по ссылке
-        lRef.ref.value = r.value
-        // Печать информации о присваивании
-        println(s"${lRef.name} : ${lRef.tpe} = ${r.value} : ${r.tpe}")
+        if (isInterpreting) {
+          val lRef = l.asInstanceOf[Expr.Reference]
+          // Присваивание значения по ссылке
+          lRef.ref.value = r.value
+          // Печать информации о присваивании
+          println(s"${lRef.name} : ${lRef.tpe} = ${r.value} : ${r.tpe}")
+        }
       })
     }
     expr
@@ -355,8 +377,10 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       )
       // Правая часть оператора ИЛИ
       expr.foreach(_ => and().foreach { r =>
-        acc = acc.map(evalBinary(TokenType.OR, _, r.value))
-        isEvaluated = true
+        if (isInterpreting) {
+          acc = acc.map(evalBinary(TokenType.OR, _, r.value))
+          isEvaluated = true
+        }
       })
       // Семантика: приведение к типу возвращаемого значения
       expr.foreach(_.tpe = TokenType.SHORT)
@@ -380,8 +404,10 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       )
       // Правая часть оператора И
       expr.foreach(_ => comparison().foreach { r =>
-        acc = acc.map(evalBinary(TokenType.AND, _, r.value))
-        isEvaluated = true
+        if (isInterpreting) {
+          acc = acc.map(evalBinary(TokenType.AND, _, r.value))
+          isEvaluated = true
+        }
       })
       // Семантика: приведение к типу возвращаемого значения
       expr.foreach(_.tpe = TokenType.SHORT)
@@ -411,8 +437,10 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       assertSemantic(expr.exists(_.tpe != SymbolNode.Type.VOID), "comparison operand shouldn't be VOID")
       // Правая часть сравнения
       expr.foreach(_ => addition().foreach { r =>
-        acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
-        isEvaluated = true
+        if (isInterpreting) {
+          acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
+          isEvaluated = true
+        }
       })
       // Семантика: приведение к типу возвращаемого значения
       expr.foreach(_.tpe = TokenType.SHORT)
@@ -436,8 +464,10 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       // Семантика: расширение типа значения
       expr.foreach(l => multiplication().foreach { r =>
         wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)
-        acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
-        isEvaluated = true
+        if (isInterpreting) {
+          acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
+          isEvaluated = true
+        }
       })
     }
     if (isEvaluated) expr.flatMap(v => acc.map(Expr.Value(v.tpe, _))) else expr
@@ -459,8 +489,10 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       // Семантика: расширение типа значения
       expr.foreach(l => unary().foreach { r =>
         wideningCast(l.tpe, r.tpe).foreach(l.tpe = _)
-        acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
-        isEvaluated = true
+        if (isInterpreting) {
+          acc = opcode.flatMap(code => acc.map(evalBinary(code, _, r.value)))
+          isEvaluated = true
+        }
       })
     }
     if (isEvaluated) expr.flatMap(v => acc.map(Expr.Value(v.tpe, _))) else expr
@@ -493,7 +525,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
         "bang operator operand shouldn't be DOUBLE"
       )
     }
-    evalUnary(prim, hasPref.map(_.tpe), hasSuf.map(_.tpe))
+    if (isInterpreting) evalUnary(prim, hasPref.map(_.tpe), hasSuf.map(_.tpe)) else prim
   }
 
   /**
@@ -502,6 +534,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def primary(): Option[Expr] = {
     // Константа
     val number = acceptOption(TokenType.NUMBER_INT, TokenType.NUMBER_EXP)
+    // TODO: при выключенной интерпретации возвращать Value(tpe, undefined)
     if (number.isDefined) return number.map(x => Expr.Value(x.tpe, SymbolNode.Type.parseLiteral(x.lexeme, x.tpe)))
     if (accept(TokenType.LEFT_PAREN)) {
       // Выражение в скобках

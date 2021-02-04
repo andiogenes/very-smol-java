@@ -1,4 +1,4 @@
-package evaluator
+package evaluation
 
 import semantic.Expr
 import tokens.TokenType
