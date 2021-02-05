@@ -131,9 +131,9 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       return
     }
     // Объявление поля
-    val (valueTpe, value) = dataDeclaration(tpe)
+    val value = SymbolNode.Type.cast(dataDeclaration(tpe)._2, tpe)
     // Печать данных о присваивании
-    if (isInterpreting) println(s"$name : $tpe = $value : $valueTpe")
+    if (isInterpreting) println(s"$name : $tpe = $value : $tpe")
     symbolTable.setCurrent(SymbolNode.Field(name, tpe, value), _root, isSameScope = true)
     // Семантическое условие "В области видимости нет полей с таким же именем."
     checkNoSameDeclarationsInScope(symbolTable.current)
@@ -258,9 +258,9 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def variableDeclaration(tpe: SymbolNode.Type.Value, _root: SymbolNode = null): Unit = {
     // Имя переменной
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
-    val (valueTpe, value) = dataDeclaration(tpe)
+    val value = SymbolNode.Type.cast(dataDeclaration(tpe)._2, tpe)
     // Печать данных о присваивании
-    if (isInterpreting) println(s"$name : $tpe = $value : $valueTpe")
+    if (isInterpreting) println(s"$name : $tpe = $value : $tpe")
     symbolTable.setCurrent(SymbolNode.Variable(name, tpe, value), _root)
     // Семантическое условие "В области видимости нет переменных с таким же именем."
     checkNoSameDeclarationsInScope(symbolTable.current)
@@ -400,9 +400,9 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
         if (isInterpreting) {
           val lRef = l.asInstanceOf[Expr.Reference]
           // Присваивание значения по ссылке
-          lRef.ref.value = r.value
+          lRef.ref.value = SymbolNode.Type.cast(r.value, lRef.tpe)
           // Печать информации о присваивании
-          println(s"${lRef.name} : ${lRef.tpe} = ${r.value} : ${r.tpe}")
+          println(s"${lRef.name} : ${lRef.tpe} = ${lRef.ref.value} : ${lRef.tpe}")
         }
       })
     }

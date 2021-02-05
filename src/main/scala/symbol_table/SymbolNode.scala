@@ -88,6 +88,23 @@ object SymbolNode {
     }
 
     /**
+     * Приводит значение к указанному типу.
+     */
+    def cast(value: Any, tpe: Value): Any = value match {
+      case x: Int => tpe match {
+        case INT | SHORT | LONG => x
+        case DOUBLE => x.toDouble
+        case _ => throw new IllegalArgumentException("value conversion error")
+      }
+      case x: Double => tpe match {
+        case INT | SHORT | LONG => x.toDouble
+        case DOUBLE => x
+        case _ => throw new IllegalArgumentException("value conversion error")
+      }
+      case _ => throw new IllegalArgumentException("value conversion error")
+    }
+
+    /**
      * Преобразует образ значения в значение.
      */
     def parseLiteral(value: String, x: Value): Any = x match {
