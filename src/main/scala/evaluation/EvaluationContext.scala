@@ -9,7 +9,7 @@ trait EvaluationContext {
   /**
    * Состояние вычисления.
    */
-  case class State(isInterpreting: Boolean, switchCondition: Option[Expr], isBreakExecuted: Boolean, returnValue: Option[Expr])
+  case class State(isInterpreting: Boolean, switchCondition: Option[Expr], isBreakExecuted: Boolean, returnValue: Option[Expr], isReturnExecuted: Boolean)
 
   private val context = new collection.mutable.Stack[State]()
 
@@ -33,8 +33,13 @@ trait EvaluationContext {
    */
   var returnValue: Option[Expr] = None
 
+  /**
+   * Флаг вызова return.
+   */
+  var isReturnExecuted = false
+
   def saveContext(): Unit = {
-    context.push(State(isInterpreting, switchCondition, isBreakExecuted, returnValue))
+    context.push(State(isInterpreting, switchCondition, isBreakExecuted, returnValue, isReturnExecuted))
   }
 
   def restoreContext(): Unit = {
@@ -44,6 +49,7 @@ trait EvaluationContext {
     switchCondition = ctx.switchCondition
     isBreakExecuted = ctx.isBreakExecuted
     returnValue = ctx.returnValue
+    isReturnExecuted = ctx.isReturnExecuted
   }
 
   def peekContext(): State = context.top

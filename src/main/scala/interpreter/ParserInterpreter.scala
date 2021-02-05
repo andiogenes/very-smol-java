@@ -279,6 +279,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     // Завершение интерпретации блока и передача возвращаемого значения
     if (isInterpreting) {
       isInterpreting = false
+      isReturnExecuted = true
       this.returnValue = returnValue
     }
   }
@@ -291,11 +292,11 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     enterSwitch()
     // Сохранение контекста
     saveContext()
-    // Отключение интерпретации
-    isInterpreting = false
     consume("'(' expected", TokenType.LEFT_PAREN)
     // Условие switch
     switchCondition = expression()
+    // Отключение интерпретации
+    isInterpreting = false
     // Условие оператора switch
     // Семантическое условие "Ограничение на тип выражения оператора switch"
     assertSemantic(
@@ -310,7 +311,14 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     // Семантика: выход из switch
     leaveSwitch()
     // Восстановление контекста
-    restoreContext()
+    if (isReturnExecuted) {
+      restoreContext()
+      // В случае вызова return надо пробросить флаги интерпретации и return из switch наружу
+      isInterpreting = false
+      isReturnExecuted = true
+    } else {
+      restoreContext()
+    }
   }
 
   /**
