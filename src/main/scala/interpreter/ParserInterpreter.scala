@@ -276,6 +276,11 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     checkProperReturn(symbolTable.current, returnValue)
     // Семантическое условие "return должен быть указан/не обязателен"
     captureReturn()
+    // Завершение интерпретации блока и передача возвращаемого значения
+    if (isInterpreting) {
+      isInterpreting = false
+      this.returnValue = returnValue
+    }
   }
 
   /**
@@ -569,7 +574,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def invocation(ref: Option[Expr]): Option[Expr] = {
     if (!isInterpreting) return ref
 
-    ref.foreach { v =>
+    ref.flatMap { v =>
       val decl = v.asInstanceOf[Expr.Reference].ref.asInstanceOf[SymbolNode.Method]
       // Сохраняем контекст вычисления
       val prev = symbolTable.current
@@ -581,8 +586,16 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       // Возвращаем предыдущую единицу кода
       codeUnits.pop()
       symbolTable.setCurrent(prev)
+
+      // Получение возвращаемого значения
+      val returnValue = this.returnValue
+
+      // Перевод в режим интерпретации после вызова return и сброс возвращаемого значения
+      isInterpreting = true
+      this.returnValue = None
+
+      returnValue.map(v => Expr.Value(v.tpe, v.value))
     }
-    ref
   }
 
   /**
