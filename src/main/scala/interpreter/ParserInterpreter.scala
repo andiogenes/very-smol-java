@@ -8,13 +8,36 @@ import semantic.{Expr, SemanticAnalyzer}
 import symbol_table.{SymbolNode, SymbolTable}
 import tokens.{Token, TokenType}
 
+import scala.collection.{BufferedIterator, View, mutable}
+
 /**
  * Парсер и интерпретатор исходного кода на языке Java.
  *
  * @param source Исходный код модуля
  */
 class ParserInterpreter(private val source: String) extends Parser with Evaluator with EvaluationContext with SemanticAnalyzer with TreePrinter {
-  private val tokens = new Scanner(source).buffered
+
+  /**
+   * Контекст единиц кода.
+   */
+  private val codeUnits = new mutable.Stack[BufferedIterator[Token]]()
+
+  /**
+   * Общая единица кода и итератор.
+   */
+  private val (wholeUnit, _peekUnit) = {
+    val seq = new Scanner(source).toSeq
+    val it = seq.iterator.zipWithIndex.buffered
+    codeUnits.push(it.map(_._1).buffered)
+    (seq, it)
+  }
+
+  /**
+   * Текущая позиция разбора токенов.
+   */
+  private def peekUnit: Int = _peekUnit.head._2
+
+  private def tokens = codeUnits.head
 
   def run(): Unit = {
     try {
@@ -60,7 +83,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
       checkTopmostClassIsMain(node)
     }
     // Члены класса
-    classMembers()
+    classMembers(isMainClass)
     symbolTable.setCurrent(node)
     // Семантическое условие "Главный класс должен иметь метод `void main()`
     if (isMainClass) checkClassHasMethod(node, "main", SymbolNode.Type.VOID)
@@ -71,13 +94,13 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   /**
    * Разбор синтаксической конструкции __"Члены класса"__.
    */
-  private def classMembers(): Unit = {
+  private def classMembers(isMainClass: Boolean): Unit = {
     // Узел таблицы
     val prev = symbolTable.current
     val root = symbolTable.setCurrent(SymbolNode.Synthetic())
     prev.rightChild = root
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
-      classMember(_root = root)
+      classMember(_root = root, isMainClass)
     }
     symbolTable.setCurrent(root)
   }
@@ -85,7 +108,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   /**
    * Разбор синтаксической конструкции __"Член класса"__.
    */
-  private def classMember(_root: SymbolNode = null): Unit = {
+  private def classMember(_root: SymbolNode = null, isMainClass: Boolean): Unit = {
     // Объявление класса
     if (accept(TokenType.CLASS)) { classDeclaration(_root = _root); return }
     // Тип данных члена класса
@@ -97,12 +120,13 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     val name = consume("member name expected", TokenType.IDENTIFIER).lexeme
     // Метод
     if (accept(TokenType.LEFT_PAREN)) {
-      symbolTable.setCurrent(SymbolNode.Method(name, tpe), _root, isSameScope = true)
+      val decl = SymbolNode.Method(name, tpe, SymbolNode.Type.default(tpe))
+      symbolTable.setCurrent(decl, _root, isSameScope = true)
       // Семантическое условие "В области видимости нет методов с таким же именем."
       checkNoSameDeclarationsInScope(symbolTable.current)
       // Семантическое условие "Наличие или отсутствие return в методе."
       enterMethod()
-      method()
+      method(decl, isMainClass)
       leaveMethod(tpe == SymbolNode.Type.VOID)
       return
     }
@@ -120,12 +144,18 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   /**
    * Разбор синтаксической конструкции __"Метод"__.
    */
-  private def method(): Unit = {
+  private def method(decl: SymbolNode.Method, isMainClass: Boolean): Unit = {
     consume("')' expected", TokenType.RIGHT_PAREN)
     consume("'{' expected", TokenType.LEFT_BRACE)
+    // Устанавливаем начало тела метода
+    decl.startPos = peekUnit
+    // Отключаем интерпретацию, если метод не main
+    if (!(isMainClass && decl.name == "main")) isInterpreting = false
     val prev = symbolTable.current
     block(isMethodBlock = true)
     symbolTable.setCurrent(prev)
+    // Включаем интерпретацию обратно
+    isInterpreting = true
   }
 
   /**
@@ -150,10 +180,14 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   /**
    * Разбор синтаксической конструкции __"Составной оператор"__.
    */
-  private def block(isMethodBlock: Boolean = false, _root: SymbolNode = null): Boolean = {
+  private def block(isMethodBlock: Boolean = false, isInvokeBlock: Boolean = false, _root: SymbolNode = null): Boolean = {
+    if (isInvokeBlock && isMethodBlock) throw  new IllegalArgumentException("block must be either method or invoke, not both")
+
     val prev = symbolTable.current
     val root = symbolTable.setCurrent(SymbolNode.Synthetic(), _root)
     if (isMethodBlock) prev.rightChild = symbolTable.current
+    // Привязываем тело метода к соответствующей области видимости, не добавляя поддерево в таблицу символов
+    if (isInvokeBlock) root.parent = prev
     while (!tokens.headOption.exists(_.tpe == TokenType.RIGHT_BRACE)) {
       statement(_root = root)
     }
@@ -162,6 +196,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     // Освобождение памяти из-под блока
     symbolTable.setCurrent(prev)
     if (isMethodBlock) prev.rightChild = null
+    if (isInvokeBlock) root.parent = null
     consume("'}' after block expected", TokenType.RIGHT_BRACE)
     // Печать дерева при освобождении памяти из-под блока
     printTable(s"Remove block $root")
@@ -529,6 +564,28 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   }
 
   /**
+   * Вызов метода.
+   */
+  private def invocation(ref: Option[Expr]): Option[Expr] = {
+    if (!isInterpreting) return ref
+
+    ref.foreach { v =>
+      val decl = v.asInstanceOf[Expr.Reference].ref.asInstanceOf[SymbolNode.Method]
+      // Сохраняем контекст вычисления
+      val prev = symbolTable.current
+      symbolTable.setCurrent(decl)
+      // Делаем текущей единицей кода блок метода
+      codeUnits.push(new View.Drop(wholeUnit, decl.startPos).iterator.buffered)
+      // Разбираем и интерпретируем блок
+      block(isInvokeBlock = true)
+      // Возвращаем предыдущую единицу кода
+      codeUnits.pop()
+      symbolTable.setCurrent(prev)
+    }
+    ref
+  }
+
+  /**
    * Разбор синтаксической конструкции __"Элементарное выражение"__.
    */
   private def primary(): Option[Expr] = {
@@ -556,9 +613,9 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     if (accept(TokenType.LEFT_PAREN)) {
       consume("')' expected in method call", TokenType.RIGHT_PAREN)
       // Семантика: поиск метода
-      return findReference(lookupStart, accessors, identifier) {
-        case SymbolNode.Method(`identifier`, _) => true
-      }
+      return invocation(findReference(lookupStart, accessors, identifier) {
+        case SymbolNode.Method(`identifier`, _, _, _) => true
+      })
     }
     // Семантика: поиск переменной или поля
     findReference(lookupStart, accessors, identifier) {

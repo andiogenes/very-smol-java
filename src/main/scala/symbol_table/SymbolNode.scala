@@ -14,6 +14,7 @@ sealed trait SymbolNode {
    * Родитель узла.
    */
   def parent: SymbolNode = _parent
+  def parent_=(node: SymbolNode): Unit = _parent = node
 
   /**
    * Левый ребенок узла.
@@ -82,6 +83,7 @@ object SymbolNode {
     def default(x: Value): Any = x match {
       case INT | SHORT | LONG => 0
       case DOUBLE => 0E0
+      case VOID => Undefined
       case _ => throw new IllegalArgumentException("value conversion error")
     }
 
@@ -116,7 +118,7 @@ object SymbolNode {
   /**
    * Тип объекта "Метод".
    */
-  case class Method(name: String, tpe: Type.Value) extends SymbolNode
+  case class Method(name: String, tpe: Type.Value, override var value: Any, var startPos: Int = -1) extends SymbolNode with ValueContainer
 
   /**
    * Тип объекта "Простая переменная".
