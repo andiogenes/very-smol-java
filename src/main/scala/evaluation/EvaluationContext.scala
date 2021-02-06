@@ -53,4 +53,6 @@ trait EvaluationContext {
   }
 
   def peekContext(): State = context.top
+
+  def isContextEmpty: Boolean = context.isEmpty
 }

@@ -275,9 +275,11 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     // Семантическое условие "return возвращает правильное значение"
     checkProperReturn(symbolTable.current, returnValue)
     // Семантическое условие "return должен быть указан/не обязателен"
-    captureReturn()
+    // Считаются только return вне условных операторов
+    // TODO: если появится другой случай использования контекста, заменить на отдельный флаг switch
+    if (isContextEmpty) captureReturn()
     // Завершение интерпретации блока и передача возвращаемого значения
-    if (isInterpreting) {
+    if (isInterpreting && !isReturnExecuted) {
       isInterpreting = false
       isReturnExecuted = true
       this.returnValue = returnValue
@@ -312,10 +314,12 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     leaveSwitch()
     // Восстановление контекста
     if (isReturnExecuted) {
+      val returnValue = this.returnValue
       restoreContext()
       // В случае вызова return надо пробросить флаги интерпретации и return из switch наружу
       isInterpreting = false
       isReturnExecuted = true
+      this.returnValue = returnValue
     } else {
       restoreContext()
     }
@@ -349,14 +353,14 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
           "case expression should be a value of type INT, LONG, SHORT or DOUBLE, got VOID"
         )
         consume("':' after switch case value expected", TokenType.COLON)
-        // Включаем интерпретацию, если switch интерпретируется, "хорошая" ветвь и не был вызван break
-        if (peekContext().isInterpreting && switchCondition.exists(l => condition.exists(l.value == _.value)) && !isBreakExecuted) {
+        // Включаем интерпретацию, если switch интерпретируется, "хорошая" ветвь и не был вызван break или return
+        if (peekContext().isInterpreting && switchCondition.exists(l => condition.exists(l.value == _.value)) && !isBreakExecuted && !isReturnExecuted) {
           isInterpreting = true
         }
       case TokenType.DEFAULT =>
         consume("':' after 'default' case label expected", TokenType.COLON)
-        // Включаем интерпретацию, если switch интерпретируется и не был вызван break
-        if (peekContext().isInterpreting && !isBreakExecuted) isInterpreting = true
+        // Включаем интерпретацию, если switch интерпретируется и не был вызван break или return
+        if (peekContext().isInterpreting && !isBreakExecuted && !isReturnExecuted) isInterpreting = true
       case _ =>
     }
     val prev = symbolTable.current
@@ -600,6 +604,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
 
       // Перевод в режим интерпретации после вызова return и сброс возвращаемого значения
       isInterpreting = true
+      isReturnExecuted = false
       this.returnValue = None
 
       returnValue.map(v => Expr.Value(v.tpe, v.value))
