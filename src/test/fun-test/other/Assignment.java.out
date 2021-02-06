@@ -1,0 +1,20 @@
+bar : INT = 0 : INT
+baz : INT = 0 : INT
+x : INT = 10 : INT
+y : INT = 1000 : INT
+y : INT = 45 : INT
+x : INT = 45 : INT
+z : INT = 45 : INT
+
+
+z : INT = 1000 : INT
+y : INT = 1000 : INT
+x : INT = 1000 : INT
+Main.Nested.baz : INT = 1000 : INT
+Main.Nested.bar : INT = 1000 : INT
+z : INT = 45 : INT
+x : INT = 45 : INT
+y : INT = 45 : INT
+x : INT = 45 : INT
+y : INT = 1000 : INT
+z : INT = 45 : INT

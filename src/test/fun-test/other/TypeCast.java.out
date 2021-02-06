@@ -1,0 +1,6 @@
+a : DOUBLE = 4.5 : DOUBLE
+b : DOUBLE = 5.0 : DOUBLE
+b : DOUBLE = 2.5 : DOUBLE
+c : DOUBLE = 2.0 : DOUBLE
+d : DOUBLE = 2.5 : DOUBLE
+d : DOUBLE = 2.5 : DOUBLE

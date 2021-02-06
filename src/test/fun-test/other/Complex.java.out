@@ -1,0 +1,45 @@
+foo : INT = 0 : INT
+bar : LONG = 0 : LONG
+baz : SHORT = 0 : SHORT
+foobar : DOUBLE = 0.0 : DOUBLE
+param : INT = 0 : INT
+foo : INT = 0 : INT
+bar : LONG = 0 : LONG
+baz : SHORT = 0 : SHORT
+foobar : DOUBLE = 0.0 : DOUBLE
+foo : INT = 5 : INT
+bar : LONG = 25252534 : LONG
+baz : SHORT = 15 : SHORT
+foobar : DOUBLE = 1.0 : DOUBLE
+42424242
+foobarbaz : INT = 10 : INT
+foobarbaz : INT = -15 : INT
+foo : INT = -15 : INT
+pseudoboolean1 : SHORT = 1 : SHORT
+pseudoboolean2 : SHORT = 0 : SHORT
+pseudoboolean3 : SHORT = 1 : SHORT
+pb1 : SHORT = 0 : SHORT
+pb2 : SHORT = 1 : SHORT
+pb3 : SHORT = 1 : SHORT
+pb4 : SHORT = 1 : SHORT
+foo : INT = 45 : INT
+foobar : DOUBLE = 0.1 : DOUBLE
+foo : INT = 0 : INT
+12345678
+987654321
+param : INT = 7 : INT
+term : INT = 7 : INT
+param : INT = 6 : INT
+term : INT = 6 : INT
+param : INT = 5 : INT
+term : INT = 5 : INT
+param : INT = 4 : INT
+term : INT = 4 : INT
+param : INT = 3 : INT
+term : INT = 3 : INT
+param : INT = 2 : INT
+term : INT = 2 : INT
+param : INT = 1 : INT
+result : INT = 5040 : INT
+foo : INT = 4 : INT
+foobar : DOUBLE = 4.5 : DOUBLE

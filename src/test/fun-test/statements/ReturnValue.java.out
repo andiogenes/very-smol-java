@@ -1,0 +1,7 @@
+x : INT = 0 : INT
+a : INT = 1 : INT
+x : INT = 0 : INT
+b : DOUBLE = 1.0 : DOUBLE
+x : INT = 1 : INT
+c : DOUBLE = 2.0 : DOUBLE
+d : DOUBLE = 4.5 : DOUBLE

@@ -14,6 +14,7 @@ sealed trait SymbolNode {
    * Родитель узла.
    */
   def parent: SymbolNode = _parent
+  def parent_=(node: SymbolNode): Unit = _parent = node
 
   /**
    * Левый ребенок узла.
@@ -53,6 +54,13 @@ sealed trait SymbolNode {
   def isEmpty: Boolean = _leftChild == null && _rightChild == null
 }
 
+/**
+ * Узел таблицы символов, который хранит некоторое значение.
+ */
+sealed trait ValueContainer { _: SymbolNode =>
+  var value: Any
+}
+
 object SymbolNode {
   /**
    * Типы данных.
@@ -72,9 +80,36 @@ object SymbolNode {
     /**
      * Возвращает образ стандартного значения для типа данных.
      */
-    def default(x: Value): String = x match {
-      case INT | SHORT | LONG => "0"
-      case DOUBLE => "0.E0"
+    def default(x: Value): Any = x match {
+      case INT | SHORT | LONG => 0
+      case DOUBLE => 0E0
+      case VOID => Undefined
+      case _ => throw new IllegalArgumentException("value conversion error")
+    }
+
+    /**
+     * Приводит значение к указанному типу.
+     */
+    def cast(value: Any, tpe: Value): Any = value match {
+      case x: Int => tpe match {
+        case INT | SHORT | LONG => x
+        case DOUBLE => x.toDouble
+        case _ => throw new IllegalArgumentException("value conversion error")
+      }
+      case x: Double => tpe match {
+        case INT | SHORT | LONG => x.toDouble
+        case DOUBLE => x
+        case _ => throw new IllegalArgumentException("value conversion error")
+      }
+      case _ => throw new IllegalArgumentException("value conversion error")
+    }
+
+    /**
+     * Преобразует образ значения в значение.
+     */
+    def parseLiteral(value: String, x: Value): Any = x match {
+      case INT | SHORT | LONG => value.toInt
+      case DOUBLE => value.toDouble
       case _ => throw new IllegalArgumentException("value conversion error")
     }
   }
@@ -95,17 +130,17 @@ object SymbolNode {
   /**
    * Тип объекта "Поле".
    */
-  case class Field(name: String, tpe: Type.Value, value: Any) extends SymbolNode
+  case class Field(name: String, tpe: Type.Value, override var value: Any) extends SymbolNode with ValueContainer
 
   /**
    * Тип объекта "Метод".
    */
-  case class Method(name: String, tpe: Type.Value) extends SymbolNode
+  case class Method(name: String, tpe: Type.Value, override var value: Any, var startPos: Int = -1) extends SymbolNode with ValueContainer
 
   /**
    * Тип объекта "Простая переменная".
    */
-  case class Variable(name: String, tpe: Type.Value, value: Any) extends SymbolNode
+  case class Variable(name: String, tpe: Type.Value, override var value: Any) extends SymbolNode with ValueContainer
 
   /**
    * Искусственный узел дерева.
@@ -120,10 +155,10 @@ object SymbolNode {
   /**
    * Печатает дерево с корнем `node` в формате GraphViz.
    */
-  def dotPrint(node: SymbolNode): Unit = {
+  def dotPrint(node: SymbolNode, title: String = ""): Unit = {
     System.out.println("digraph G {")
+    val q = '"'
     def _print(node: SymbolNode, id: Int = 0): Unit = {
-      val q = '"'
       val root = s"\tn$id [${if (node.isInstanceOf[Synthetic]) "style=filled, fillcolor=black" else s"label=$q$node$q"}];"
       System.out.println(root)
       val leftId = 2*id+1
@@ -135,6 +170,10 @@ object SymbolNode {
       if (node.rightChild != null) _print(node.rightChild, rightId) else System.out.println(s"\tn$rightId [label=${q}right$q, style=filled, fillcolor=gray];")
     }
     _print(node)
+    if (title.nonEmpty) {
+      System.out.println(s"labelloc=${q}t$q;")
+      System.out.println(s"label=$q$title$q;")
+    }
     System.out.println("}")
   }
 }

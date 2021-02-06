@@ -1,0 +1,15 @@
+param : INT = 0 : INT
+param : INT = 7 : INT
+term : INT = 7 : INT
+param : INT = 6 : INT
+term : INT = 6 : INT
+param : INT = 5 : INT
+term : INT = 5 : INT
+param : INT = 4 : INT
+term : INT = 4 : INT
+param : INT = 3 : INT
+term : INT = 3 : INT
+param : INT = 2 : INT
+term : INT = 2 : INT
+param : INT = 1 : INT
+result : INT = 5040 : INT
