@@ -133,7 +133,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     // Объявление поля
     val value = SymbolNode.Type.cast(dataDeclaration(tpe)._2, tpe)
     // Печать данных о присваивании
-    if (isInterpreting) println(s"$name : $tpe = $value : $tpe")
+    if (isInterpreting) System.out.println(s"$name : $tpe = $value : $tpe")
     symbolTable.setCurrent(SymbolNode.Field(name, tpe, value), _root, isSameScope = true)
     // Семантическое условие "В области видимости нет полей с таким же именем."
     checkNoSameDeclarationsInScope(symbolTable.current)
@@ -244,9 +244,9 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
   private def printlnStatement(): Unit = {
     consume("'(' expected", TokenType.LEFT_PAREN)
     if (accept(TokenType.RIGHT_PAREN)) {
-      if (isInterpreting) println()
+      if (isInterpreting) System.out.println()
     } else {
-      expression().foreach(x => if (isInterpreting) println(x))
+      expression().foreach(x => if (isInterpreting) System.out.println(x))
       consume("')' expected", TokenType.RIGHT_PAREN)
     }
     consume("';' after println expected", TokenType.SEMICOLON)
@@ -260,7 +260,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     val name = consume("variable name expected", TokenType.IDENTIFIER).lexeme
     val value = SymbolNode.Type.cast(dataDeclaration(tpe)._2, tpe)
     // Печать данных о присваивании
-    if (isInterpreting) println(s"$name : $tpe = $value : $tpe")
+    if (isInterpreting) System.out.println(s"$name : $tpe = $value : $tpe")
     symbolTable.setCurrent(SymbolNode.Variable(name, tpe, value), _root)
     // Семантическое условие "В области видимости нет переменных с таким же именем."
     checkNoSameDeclarationsInScope(symbolTable.current)
@@ -406,7 +406,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
           // Присваивание значения по ссылке
           lRef.ref.value = SymbolNode.Type.cast(r.value, lRef.tpe)
           // Печать информации о присваивании
-          println(s"${lRef.name} : ${lRef.tpe} = ${lRef.ref.value} : ${lRef.tpe}")
+          System.out.println(s"${lRef.name} : ${lRef.tpe} = ${lRef.ref.value} : ${lRef.tpe}")
         }
       })
     }
