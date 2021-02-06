@@ -282,7 +282,7 @@ class ParserInterpreter(private val source: String) extends Parser with Evaluato
     if (isInterpreting && !isReturnExecuted) {
       isInterpreting = false
       isReturnExecuted = true
-      this.returnValue = returnValue
+      this.returnValue = returnValue.map(v => Expr.Value(v.tpe, SymbolNode.Type.cast(v.value, v.tpe)))
     }
   }
 
