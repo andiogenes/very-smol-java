@@ -132,7 +132,7 @@ trait SemanticAnalyzer {
     lookup(start) match {
       case (false, None) => throw new IllegalStateException("shouldn't reach here")
       case (false, Some(tpe)) => assertSemantic(assertion = false, s"incompatible types: $tpe required, got $returnType")
-      case _ =>
+      case (_, typeOption) => typeOption.foreach(tpe => valueOption.foreach(_.tpe = tpe))
     }
   }
 
