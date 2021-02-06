@@ -1,0 +1,8 @@
+x : INT = 0 : INT
+1
+2
+3
+x : INT = 10 : INT
+x : INT = 20 : INT
+x : INT = 30 : INT
+30
