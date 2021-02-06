@@ -1,7 +1,6 @@
 class Main {
     int field = (10 + 5 * 4 - 2) / 6;   // 4
 
-    // Пока функции не реализованы, возвращает стандартное значение типа
     int method() { return 1; }
 
     void main() {
@@ -103,6 +102,6 @@ class Main {
         int complex3 = -(5 * 8 + 32 / 2);                           // -56
         double complex4 = 5 * 8 + 32 / 2 + 1 / 3.E0;                // 56.333...
         double complex5 = (complex3 + complex4) * complex2 + field; // 4.333...
-        complex5 = complex5 * method();                             // 0
+        complex5 = complex5 * method();                             // 4.333...
     }
 }
