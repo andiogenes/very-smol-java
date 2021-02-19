@@ -61,6 +61,10 @@ sealed trait ValueContainer { _: SymbolNode =>
   var value: Any
 }
 
+sealed trait IdentifiedInIR { _: SymbolNode =>
+  val identifier: String
+}
+
 object SymbolNode {
   /**
    * Типы данных.
@@ -130,17 +134,17 @@ object SymbolNode {
   /**
    * Тип объекта "Поле".
    */
-  case class Field(name: String, tpe: Type.Value, override var value: Any) extends SymbolNode with ValueContainer
+  case class Field(name: String, tpe: Type.Value, override var value: Any, override val identifier: String) extends SymbolNode with ValueContainer with IdentifiedInIR
 
   /**
    * Тип объекта "Метод".
    */
-  case class Method(name: String, tpe: Type.Value, override var value: Any, var startPos: Int = -1) extends SymbolNode with ValueContainer
+  case class Method(name: String, tpe: Type.Value, override var value: Any, var startPos: Int = -1, override val identifier: String) extends SymbolNode with ValueContainer with IdentifiedInIR
 
   /**
    * Тип объекта "Простая переменная".
    */
-  case class Variable(name: String, tpe: Type.Value, override var value: Any) extends SymbolNode with ValueContainer
+  case class Variable(name: String, tpe: Type.Value, override var value: Any, override val identifier: String) extends SymbolNode with ValueContainer with IdentifiedInIR
 
   /**
    * Искусственный узел дерева.

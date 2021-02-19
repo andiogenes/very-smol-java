@@ -1,6 +1,6 @@
 package semantic
 
-import symbol_table.{SymbolNode, ValueContainer}
+import symbol_table.{IdentifiedInIR, SymbolNode, ValueContainer}
 
 /**
  * Промежуточное представление выражений-операторов.
@@ -24,7 +24,7 @@ object Expr {
   /**
    * Именованное значение.
    */
-  case class Reference(name: String, override var tpe: SymbolNode.Type.Value, ref: ValueContainer) extends Expr {
+  case class Reference(name: String, override var tpe: SymbolNode.Type.Value, ref: ValueContainer with IdentifiedInIR) extends Expr {
     override def value: Any = ref.value
     override def isLiteral: Boolean = false
     override def toString: String = ref.value.toString
