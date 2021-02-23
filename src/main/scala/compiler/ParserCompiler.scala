@@ -6,6 +6,7 @@ import ir.IRBuilder
 import ir.Instruction._
 import ir.ModuleEntry.{FunctionDefinition, GlobalVariable}
 import ir.Terminator.{Goto, Return}
+import llvm.LLVMToolbox
 import parser.Parser
 import printer.TreePrinter
 import scanner.Scanner
@@ -20,13 +21,22 @@ import scala.collection.{BufferedIterator, View, mutable}
  *
  * @param source Исходный код модуля
  */
-class ParserCompiler(private val source: String, override val destination: String, val interpret: Boolean, val compile: Boolean) extends Parser
+class ParserCompiler(
+    private val source: String,
+    override val destination: String,
+    val interpret: Boolean,
+    val compile: Boolean,
+    val interpretLLVM: Boolean,
+    val justEmit: Boolean
+)
+  extends Parser
   with IRBuilder
   with CodeGenerator
   with Evaluator
   with EvaluationContext
   with SemanticAnalyzer
-  with TreePrinter {
+  with TreePrinter
+  with LLVMToolbox {
 
   isInterpreting = interpret
 
@@ -57,6 +67,13 @@ class ParserCompiler(private val source: String, override val destination: Strin
       parse()
       if (compile) {
         emitAll()
+        if (justEmit) return
+        if (interpretLLVM) {
+          lli(s"$destination.ll")
+        } else {
+          llc(s"$destination.ll")
+          clang(s"$destination.o", destination)
+        }
       }
     } catch {
       case _: SemanticError =>

@@ -18,7 +18,16 @@ object App extends App {
 
   val compile = options(Cli.Compile).asInstanceOf[Boolean]
   val interpret = !compile && options(Cli.Interpret).asInstanceOf[Boolean]
+  val interpretLLVM = options(Cli.InterpretLLVM).asInstanceOf[Boolean]
+  val justEmit = options(Cli.JustEmit).asInstanceOf[Boolean]
 
-  val compiler = new ParserCompiler(source, destinationPath, interpret = interpret, compile = compile)
+  val compiler = new ParserCompiler(
+    source,
+    destinationPath,
+    interpret = interpret,
+    compile = compile || interpretLLVM || justEmit,
+    interpretLLVM = interpretLLVM,
+    justEmit = justEmit
+  )
   compiler.run()
 }
