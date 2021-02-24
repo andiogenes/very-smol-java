@@ -3,7 +3,7 @@ package cmd
 import java.nio.charset.Charset
 import java.nio.file.{Files, Paths}
 
-import interpreter.ParserInterpreter
+import compiler.ParserCompiler
 
 object App extends App {
   val options = Cli.parse(args)
@@ -11,6 +11,23 @@ object App extends App {
   val sourcePath = options(Cli.Source).toString
   val source = new String(Files.readAllBytes(Paths.get(sourcePath)), Charset.defaultCharset)
 
-  val interpreter = new ParserInterpreter(source)
-  interpreter.run()
+  val destinationPath = {
+    val path = options(Cli.Destination).toString
+    if (path.nonEmpty) path else sourcePath.split('.').head
+  }
+
+  val compile = options(Cli.Compile).asInstanceOf[Boolean]
+  val interpret = !compile && options(Cli.Interpret).asInstanceOf[Boolean]
+  val interpretLLVM = options(Cli.InterpretLLVM).asInstanceOf[Boolean]
+  val justEmit = options(Cli.JustEmit).asInstanceOf[Boolean]
+
+  val compiler = new ParserCompiler(
+    source,
+    destinationPath,
+    interpret = interpret,
+    compile = compile || interpretLLVM || justEmit,
+    interpretLLVM = interpretLLVM,
+    justEmit = justEmit
+  )
+  compiler.run()
 }

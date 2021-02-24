@@ -65,7 +65,7 @@ trait SemanticAnalyzer {
     def search(current: SymbolNode): Boolean = {
       current match {
         case null => false
-        case SymbolNode.Method(`methodName`, tpe, _, _) => methodType == null || methodType == tpe
+        case SymbolNode.Method(`methodName`, tpe, _, _, _) => methodType == null || methodType == tpe
         case _ => search(current.leftChild)
       }
     }
@@ -79,9 +79,9 @@ trait SemanticAnalyzer {
     def formatNode(x: SymbolNode): String = {
       x match {
         case SymbolNode.Class(name) => s"class $name"
-        case SymbolNode.Method(name, _, _, _) => s"method $name"
-        case SymbolNode.Field(name, _, _) => s"field $name"
-        case SymbolNode.Variable(name, _, _) => s"variable $name"
+        case SymbolNode.Method(name, _, _, _, _) => s"method $name"
+        case SymbolNode.Field(name, _, _, _) => s"field $name"
+        case SymbolNode.Variable(name, _, _, _) => s"variable $name"
         case _ => throw new IllegalArgumentException()
       }
     }
@@ -90,19 +90,19 @@ trait SemanticAnalyzer {
     def lookup(current: SymbolNode): Boolean = {
       current match {
         case null | SymbolNode.Synthetic() => true
-        case SymbolNode.Field(name, _, _) =>
+        case SymbolNode.Field(name, _, _, _) =>
           decl match {
-            case SymbolNode.Field(`name`, _, _) => false
+            case SymbolNode.Field(`name`, _, _, _) => false
             case _ => lookup(current.parent)
           }
-        case SymbolNode.Variable(name, _, _) =>
+        case SymbolNode.Variable(name, _, _, _) =>
           decl match {
-            case SymbolNode.Variable(`name`, _, _) => false
+            case SymbolNode.Variable(`name`, _, _, _) => false
             case _ => lookup(current.parent)
           }
-        case SymbolNode.Method(name, _, _, _) =>
+        case SymbolNode.Method(name, _, _, _, _) =>
           decl match {
-            case SymbolNode.Method(`name`, _, _, _) => false
+            case SymbolNode.Method(`name`, _, _, _, _) => false
             case _ => lookup(current.parent)
           }
         case x => if (x == decl) false else lookup(current.parent)
@@ -125,7 +125,7 @@ trait SemanticAnalyzer {
     def lookup(current: SymbolNode): (Boolean, Option[SymbolNode.Type.Value]) = {
       current match {
         case null | _: SymbolNode.Class | _: SymbolNode.Field => (false, None)
-        case SymbolNode.Method(_, tpe, _, _) => (cast(from = returnType, to = tpe, valueOption.exists(_.isLiteral)).isDefined, Some(tpe))
+        case SymbolNode.Method(_, tpe, _, _, _) => (cast(from = returnType, to = tpe, valueOption.exists(_.isLiteral)).isDefined, Some(tpe))
         case _ => lookup(current.parent)
       }
     }
@@ -181,9 +181,9 @@ trait SemanticAnalyzer {
     }
 
     node match {
-      case Some(v @ SymbolNode.Variable(_, tpe, _)) => Some(Expr.Reference(fullName, tpe, v))
-      case Some(f @ SymbolNode.Field(_, tpe, _)) => Some(Expr.Reference(fullName, tpe, f))
-      case Some(m @ SymbolNode.Method(_, tpe, _, _)) => Some(Expr.Reference(fullName, tpe, m))
+      case Some(v @ SymbolNode.Variable(_, tpe, _, _)) => Some(Expr.Reference(fullName, tpe, v))
+      case Some(f @ SymbolNode.Field(_, tpe, _, _)) => Some(Expr.Reference(fullName, tpe, f))
+      case Some(m @ SymbolNode.Method(_, tpe, _, _, _)) => Some(Expr.Reference(fullName, tpe, m))
       case _ => assertSemantic(assertion = false, s"$fullName not found"); None
     }
   }
